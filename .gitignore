@@ -101,6 +101,9 @@ venv.bak/
 # Rope project settings
 .ropeproject
 
+#Pycharm
+workspace.xml
+
 # mkdocs documentation
 /site
 
