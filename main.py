@@ -98,25 +98,17 @@ def allocate_player_to_server_focus(player_list, server_list):
             distance_to_focus = euclidean_distance(server_focus, player_position)
             if distance_to_focus < shortest_distance:
                 shortest_distance = distance_to_focus
-                nearest_server = server_list.index(server)
-                player['nearest_server'] = nearest_server
+                player['nearest_server'] = server_list.index(server)
 
-        server['player_list'] = [player for player in player_list if
-                                 player['id'] in nearest_to_server and player['nearest_server'] == server]
-
-        print(server['player_list'])
-        for player in server['player_list']:
-            try:
-                player['server'] = server_list.index(server)
-                server['bloom_filter'].add(player['id'])
-                if verbose:
-                    print(
-                        "Player {} allocated in server {} - Server coordinates: ({},{}) - Player coordinates: ({},{}) - Server Load: {}".format(
-                            player['id'], player['server'], server['pos_x'], server['pos_y'], player['pos_x'],
-                            player['pos_y'], server['bloom_filter'].count))
-            except IndexError:
-                server['player_list'].remove(player)
-                change_player_server(player)
+    for player in player_list:
+        try:
+            player['server'] = player['nearest_server']
+            server_list[player['server']]['bloom_filter'].add(player['id'])
+            if verbose:
+                print("Player {} allocated in server {}".format(player['id'], player['server']))
+        except IndexError:
+            del player['server']
+            change_player_server(player)
 
 
 def change_player_server(server_list, player):
@@ -126,6 +118,7 @@ def change_player_server(server_list, player):
             emptiest_server = server
     emptiest_server['player_list'].append(player)
     emptiest_server['bloom_filter'].add(player['id'])
+    player['server'] = server_list.index(emptiest_server)
 
 
 # Calculates the list of viewable players by a single player
@@ -151,7 +144,7 @@ def calculate_number_of_forwards_per_server(player_list, server_list):
 
 
 def euclidean_distance(a, b):
-    return np.linalg.norm(a-b)
+    return np.linalg.norm(a - b)
 
 
 def random_method():
