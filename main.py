@@ -160,18 +160,29 @@ def calculate_viewable_players(player_list, k):
             print("{} nearest neighbors from player {}: {}".format(k, player['id'], player['neighbors']))
 
 
+def publish_interest_groups(player_list, server_list):
+    interest_groups = [BloomFilter(server_capacity, error_rate=0.1) for server in server_list]
+    for player in player_list:
+        for neighbor_id in player['neighbors']:
+            if neighbor_id not in server_list[player['server']]['bloom_filter'] and neighbor_id not in interest_groups[player['server']]:
+                if verbose:
+                    print("Player {} added to interest group of server {}".format(neighbor_id, player['server']))
+                interest_groups[player['server']].add(neighbor_id)
+    return interest_groups
+
+
 # Calculates the number of forwards done by each server based on its players list
 def calculate_number_of_forwards_per_server(player_list, server_list):
     number_of_servers = len(server_list)
     number_of_forwards_by_server = [0 for x in range(number_of_servers)]
-    for player in player_list:
-        for neighbor in player['neighbors']:
-            if neighbor not in server_list[player['server']]['bloom_filter']:
-                number_of_forwards_by_server[player['server']] += 1
+    interest_groups = publish_interest_groups(player_list, server_list)
+    for i, interest_group in enumerate(interest_groups):
+        number_of_forwards_by_server[i] = interest_group.count
     for i in range(number_of_servers):
         if verbose:
             print("Server {}: {} forwards".format(i, str(number_of_forwards_by_server[i])))
-    print("Total forwards: {}".format(sum(number_of_forwards_by_server)))
+    if 'pos_x' not in server_list[0]:
+        print("Total forwards: {}".format(sum(number_of_forwards_by_server)))
 
     return sum(number_of_forwards_by_server), number_of_forwards_by_server
 
@@ -183,8 +194,8 @@ def euclidean_distance(a, b):
 
 def hashing_method(players, servers):
     idx = index.Index()
-    plot(players, "Método hashing")
     allocate_player_to_server_hashing(players, servers)
+    plot(players, "Método hashing")
     calculate_viewable_players(players, viewable_players)
     print("Método hashing: ")
     calculate_number_of_forwards_per_server(players, servers)
@@ -206,7 +217,8 @@ def server_focus_method(players, servers):
     least_forwards = 9999999
     for _ in range(100):
         servers_with_focus = allocate_player_to_server_focus(players, servers)
-        print("Método dos focos (iteration {}): ".format(_))
+        if verbose:
+            print("Iteration {}: ".format(_))
         calculate_viewable_players(players, viewable_players)
         total_forwards, forwards_by_server = calculate_number_of_forwards_per_server(players, servers)
         if total_forwards < least_forwards:
@@ -216,19 +228,22 @@ def server_focus_method(players, servers):
             players = deepcopy(initial_setup_players)
             servers = deepcopy(initial_setup_servers)
     plot(players, "Método dos focos", focus=True, servers=best_setup)
+    print("Método dos focos:")
     print("Least number of forwards: {}".format(least_forwards))
 
 
 def plot(player_list, method_name, partition=False, focus=False, frontiers=[], servers=[]):
-    plt.plot([player['pos_x'] for player in player_list], [player['pos_y'] for player in player_list], 'ro')
+    for player in player_list:
+        plt.plot(player['pos_x'], player['pos_y'], 'ro')
     plt.axis([0, MAP_XMAX, 0, MAP_YMAX])
     for i, player in enumerate(player_list):
         plt.annotate(xy=(player['pos_x'], player['pos_y']), s=str(i))
     if partition:
-        for frontier in frontiers:
+        for i, frontier in enumerate(frontiers):
             plt.axvline(x=frontier)
     if focus:
-        plt.plot([server['pos_x'] for server in servers], [server['pos_y'] for server in servers], 'bo')
+        for i, server in enumerate(servers):
+            plt.plot(server['pos_x'], server['pos_y'], 'bo')
         for i, server in enumerate(servers):
             plt.annotate(xy=(server['pos_x'], server['pos_y']), s=str(i))
     plt.title(method_name)
