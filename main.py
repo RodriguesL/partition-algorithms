@@ -4,6 +4,7 @@ from pybloom_live import BloomFilter
 from math import floor
 import numpy as np
 import matplotlib.pyplot as plt
+from copy import deepcopy
 
 
 # Generates random player positions
@@ -172,27 +173,25 @@ def calculate_number_of_forwards_per_server(player_list, server_list):
             print("Server {}: {} forwards".format(i, str(number_of_forwards_by_server[i])))
     print("Total forwards: {}".format(sum(number_of_forwards_by_server)))
 
+    return sum(number_of_forwards_by_server), number_of_forwards_by_server
+
 
 # Auxiliary function to calculate the euclidian distance between two points
 def euclidean_distance(a, b):
     return np.linalg.norm(a - b)
 
 
-def hashing_method():
+def hashing_method(players, servers):
     idx = index.Index()
-    players = generate_players(n_players)
     plot(players, "Método hashing")
-    servers = create_servers(server_capacity, n_servers)
     allocate_player_to_server_hashing(players, servers)
     calculate_viewable_players(players, viewable_players)
     print("Método hashing: ")
     calculate_number_of_forwards_per_server(players, servers)
 
 
-def equal_partitions_method():
+def equal_partitions_method(players, servers):
     idx = index.Index()
-    players = generate_players(n_players)
-    servers = create_servers(server_capacity, n_servers)
     partitions = allocate_player_to_server_equal_partitions(players, servers)
     plot(players, "Método das partições", partition=True, frontiers=partitions)
     calculate_viewable_players(players, viewable_players)
@@ -200,15 +199,24 @@ def equal_partitions_method():
     calculate_number_of_forwards_per_server(players, servers)
 
 
-def server_focus_method():
+def server_focus_method(players, servers):
     idx = index.Index()
-    players = generate_players(n_players)
-    servers = create_servers(server_capacity, n_servers)
-    servers_with_focus = allocate_player_to_server_focus(players, servers)
-    plot(players, "Método dos focos", focus=True, servers=servers_with_focus)
-    calculate_viewable_players(players, viewable_players)
-    print("Método dos focos: ")
-    calculate_number_of_forwards_per_server(players, servers)
+    initial_setup_players = deepcopy(players)
+    initial_setup_servers = deepcopy(servers)
+    least_forwards = 9999999
+    for _ in range(100):
+        servers_with_focus = allocate_player_to_server_focus(players, servers)
+        print("Método dos focos (iteration {}): ".format(_))
+        calculate_viewable_players(players, viewable_players)
+        total_forwards, forwards_by_server = calculate_number_of_forwards_per_server(players, servers)
+        if total_forwards < least_forwards:
+            least_forwards = total_forwards
+            best_setup = deepcopy(servers_with_focus)
+        if _ + 1 < 100:
+            players = deepcopy(initial_setup_players)
+            servers = deepcopy(initial_setup_servers)
+    plot(players, "Método dos focos", focus=True, servers=best_setup)
+    print("Least number of forwards: {}".format(least_forwards))
 
 
 def plot(player_list, method_name, partition=False, focus=False, frontiers=[], servers=[]):
@@ -273,7 +281,18 @@ while True:
     else:
         verbose = bool(verbose)
         break
-hashing_method()
-equal_partitions_method()
-server_focus_method()
+list_of_players = generate_players(n_players)
+list_of_servers = create_servers(server_capacity, n_servers)
+hashing = {}
+partitions = {}
+focus = {}
+hashing['players'] = deepcopy(list_of_players)
+hashing['servers'] = deepcopy(list_of_servers)
+partitions['players'] = deepcopy(list_of_players)
+partitions['servers'] = deepcopy(list_of_servers)
+focus['players'] = deepcopy(list_of_players)
+focus['servers'] = deepcopy(list_of_servers)
+hashing_method(hashing['players'], hashing['servers'])
+equal_partitions_method(partitions['players'], partitions['servers'])
+server_focus_method(focus['players'], focus['servers'])
 
