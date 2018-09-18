@@ -1,7 +1,7 @@
 from rtree import index
 from random import uniform
 from pybloom_live import BloomFilter
-from math import floor
+from math import floor, sqrt
 import numpy as np
 import matplotlib.pyplot as plt
 from copy import deepcopy
@@ -55,51 +55,83 @@ def allocate_player_to_server_hashing(player_list, server_list):
 def allocate_player_to_server_equal_partitions(player_list, server_list):
     frontiers = []
     number_of_servers = len(server_list)
-    for i in range(number_of_servers - 1):
-        frontiers.append((i + 1) * (MAP_XMAX / number_of_servers))
-    for player in player_list:
-        if player['pos_x'] < frontiers[0]:
-            try:
-                server_list[0]['bloom_filter'].add(player['id'])
-                player['server'] = 0
-                if verbose:
-                    print(
-                        "Player {} allocated in server {} - Coordinates({},{}) - Frontier: < {}".format(player['id'], 0,
-                                                                                                        player['pos_x'],
-                                                                                                        player['pos_y'],
-                                                                                                        frontiers[0]))
-            except IndexError:
-                change_player_server(server_list, player)
-        elif player['pos_x'] >= frontiers[-1]:
-            try:
-                server_list[-1]['bloom_filter'].add(player['id'])
-                player['server'] = server_list.index(server_list[-1])
-                if verbose:
-                    print("Player {} allocated in server {} - Coordinates({},{}) - Frontier: > {}".format(player['id'],
-                                                                                                          number_of_servers - 1,
-                                                                                                          player[
-                                                                                                              'pos_x'],
-                                                                                                          player[
-                                                                                                              'pos_y'],
-                                                                                                          frontiers[
-                                                                                                              -1]))
-            except IndexError:
-                change_player_server(server_list, player)
-        for i in range(len(frontiers) - 1):
-            if frontiers[i] <= player['pos_x'] < frontiers[i + 1]:
+    if number_of_servers < 9:
+        for i in range(number_of_servers - 1):
+            frontiers.append((i + 1) * (MAP_XMAX / number_of_servers))
+        for player in player_list:
+            if player['pos_x'] < frontiers[0]:
                 try:
-                    server_list[i + 1]['bloom_filter'].add(player['id'])
-                    player['server'] = i + 1
+                    server_list[0]['bloom_filter'].add(player['id'])
+                    player['server'] = 0
                     if verbose:
-                        print("Player {} allocated in server {} - Coordinates({},{}) - Frontier: {} <= x < {}".format(
-                            player['id'], i + 1,
-                            player['pos_x'],
-                            player['pos_y'],
-                            frontiers[i], frontiers[i + 1]))
+                        print(
+                            "Player {} allocated in server {} - Coordinates({},{}) - Frontier: < {}".format(player['id'], 0,
+                                                                                                            player['pos_x'],
+                                                                                                            player['pos_y'],
+                                                                                                            frontiers[0]))
                 except IndexError:
                     change_player_server(server_list, player)
-    return frontiers
+            elif player['pos_x'] >= frontiers[-1]:
+                try:
+                    server_list[-1]['bloom_filter'].add(player['id'])
+                    player['server'] = server_list.index(server_list[-1])
+                    if verbose:
+                        print("Player {} allocated in server {} - Coordinates({},{}) - Frontier: > {}".format(player['id'],
+                                                                                                              number_of_servers - 1,
+                                                                                                              player[
+                                                                                                                  'pos_x'],
+                                                                                                              player[
+                                                                                                                  'pos_y'],
+                                                                                                              frontiers[
+                                                                                                                  -1]))
+                except IndexError:
+                    change_player_server(server_list, player)
+            for i in range(len(frontiers) - 1):
+                if frontiers[i] <= player['pos_x'] < frontiers[i + 1]:
+                    try:
+                        server_list[i + 1]['bloom_filter'].add(player['id'])
+                        player['server'] = i + 1
+                        if verbose:
+                            print("Player {} allocated in server {} - Coordinates({},{}) - Frontier: {} <= x < {}".format(
+                                player['id'], i + 1,
+                                player['pos_x'],
+                                player['pos_y'],
+                                frontiers[i], frontiers[i + 1]))
+                    except IndexError:
+                        change_player_server(server_list, player)
+        return frontiers
 
+    #TODO: implementar o verbose e os try/except
+    elif sqrt(number_of_servers).is_integer() and number_of_servers >= 9:
+        frontiers = [[],[]]
+        for i in range(sqrt(number_of_servers) - 1):
+            frontiers[0].append((i + 1) * (MAP_XMAX / sqrt(number_of_servers))) #Frontiers on the x-axis
+            frontiers[1].append((i + 1) * (MAP_YMAX / sqrt(number_of_servers))) #Frontiers on the y-axis
+        for player in player_list:
+            if player['pos_x'] < frontiers[0][0]:
+                if player['pos_y'] < frontier[1][0]:
+                    server_list[0]['bloom_filter'].add(player['id'])
+                    player['server'] = 0
+                if player['pos_y'] >= frontier[1][-1]:
+                    server_list[len(frontiers[0]) + 1]['bloom_filter'].add(player['id'])
+                    player['server'] = len(frontiers[0]) + 1
+            if player['pos_x'] >= frontiers[0][-1]:
+                if player['pos_y'] < frontiers[1][0]:
+                    server_list[len(frontiers[0]) + 2]['bloom_filter'].add(player['id'])
+                    player['server'] = len(frontiers[0]) + 2
+                if player['pos_y'] >= frontier[1][-1]:
+                    server_list[-1]['bloom_filter'].add(player['id'])
+                    player['server'] = len(server_list) - 1
+            for i in range(len(frontiers[0]) - 1):
+                if frontiers[0][i] <= player['pos_x'] < frontiers[0][i + 1]:
+                    for j in range(len(frontiers[1]) - 1):
+                        if frontiers[1][j] <= player['pos_y'] < frontiers[1][j + 1]:
+                            server[(i+1)*len(frontiers[0]) + (j+1)*len(frontiers[1])]['bloom_filter'].add(player['id'])
+                            player['server'] = (i+1)*len(frontiers[0]) + (j+1)*len(frontiers[1])
+
+        return frontiers
+            
+        
 
 # Allocates players to a server based on the server location on the map (random spot and k nearest players are allocated to the server)
 def allocate_player_to_server_focus(player_list, server_list):
@@ -251,7 +283,6 @@ def plot(player_list, method_name, n_servers, partition=False, focus=False, fron
     plt.title(method_name)
     plt.grid(True)
     plt.show()
-
 
 idx = index.Index()
 while True:
