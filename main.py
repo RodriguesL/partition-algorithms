@@ -195,7 +195,7 @@ def euclidean_distance(a, b):
 def hashing_method(players, servers):
     idx = index.Index()
     allocate_player_to_server_hashing(players, servers)
-    plot(players, "Método hashing")
+    plot(players, "Método hashing", len(servers))
     calculate_viewable_players(players, viewable_players)
     print("Método hashing: ")
     calculate_number_of_forwards_per_server(players, servers)
@@ -204,7 +204,7 @@ def hashing_method(players, servers):
 def equal_partitions_method(players, servers):
     idx = index.Index()
     partitions = allocate_player_to_server_equal_partitions(players, servers)
-    plot(players, "Método das partições", partition=True, frontiers=partitions)
+    plot(players, "Método das partições", len(servers), partition=True, frontiers=partitions)
     calculate_viewable_players(players, viewable_players)
     print("Método das partições: ")
     calculate_number_of_forwards_per_server(players, servers)
@@ -215,7 +215,8 @@ def server_focus_method(players, servers):
     initial_setup_players = deepcopy(players)
     initial_setup_servers = deepcopy(servers)
     least_forwards = 9999999
-    for _ in range(100):
+    number_of_tries = 100
+    for _ in range(number_of_tries):
         servers_with_focus = allocate_player_to_server_focus(players, servers)
         if verbose:
             print("Iteration {}: ".format(_))
@@ -224,28 +225,29 @@ def server_focus_method(players, servers):
         if total_forwards < least_forwards:
             least_forwards = total_forwards
             best_setup = deepcopy(servers_with_focus)
-        if _ + 1 < 100:
+        if _ + 1 is not number_of_tries:
             players = deepcopy(initial_setup_players)
             servers = deepcopy(initial_setup_servers)
-    plot(players, "Método dos focos", focus=True, servers=best_setup)
+    plot(players, "Método dos focos", len(servers), focus=True, servers=best_setup)
     print("Método dos focos:")
     print("Least number of forwards: {}".format(least_forwards))
 
 
-def plot(player_list, method_name, partition=False, focus=False, frontiers=[], servers=[]):
+def plot(player_list, method_name, n_servers, partition=False, focus=False, frontiers=[], servers=[]):
+    cmap = plt.cm.get_cmap("hsv", n_servers+1)
     for player in player_list:
-        plt.plot(player['pos_x'], player['pos_y'], 'ro')
+        plt.scatter(player['pos_x'], player['pos_y'], c=cmap(player['server']))
     plt.axis([0, MAP_XMAX, 0, MAP_YMAX])
-    for i, player in enumerate(player_list):
-        plt.annotate(xy=(player['pos_x'], player['pos_y']), s=str(i))
+    # for i, player in enumerate(player_list):
+    #     plt.annotate(xy=(player['pos_x'], player['pos_y']), s="Player " + str(i))
     if partition:
         for i, frontier in enumerate(frontiers):
-            plt.axvline(x=frontier)
+            plt.axvline(x=frontier, c=cmap(i+1))
     if focus:
         for i, server in enumerate(servers):
-            plt.plot(server['pos_x'], server['pos_y'], 'bo')
-        for i, server in enumerate(servers):
-            plt.annotate(xy=(server['pos_x'], server['pos_y']), s=str(i))
+            plt.scatter(server['pos_x'], server['pos_y'], c=cmap(i), marker="s", s=100)
+        # for i, server in enumerate(servers):
+        #     plt.annotate(xy=(server['pos_x'], server['pos_y']), s="Server " + str(i))
     plt.title(method_name)
     plt.grid(True)
     plt.show()
