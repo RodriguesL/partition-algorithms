@@ -12,8 +12,8 @@ def generate_players(number_of_players):
     player_list = []
     for i in range(number_of_players):
         player = {}
-        player['pos_x'] = uniform(MAP_XMIN, MAP_XMAX)
-        player['pos_y'] = uniform(MAP_YMIN, MAP_YMAX)
+        player['pos_x'] = uniform(0, MAP_XMAX)
+        player['pos_y'] = uniform(0, MAP_YMAX)
         player['id'] = i
         create_spatial_index(player['id'], player['pos_x'], player['pos_y'])
         player_list.append(player)
@@ -55,6 +55,7 @@ def allocate_player_to_server_hashing(player_list, server_list):
 def allocate_player_to_server_equal_partitions(player_list, server_list):
     frontiers = []
     number_of_servers = len(server_list)
+    is_grid = False
     if number_of_servers < 9:
         for i in range(number_of_servers - 1):
             frontiers.append((i + 1) * (MAP_XMAX / number_of_servers))
@@ -99,11 +100,11 @@ def allocate_player_to_server_equal_partitions(player_list, server_list):
                                 frontiers[i], frontiers[i + 1]))
                     except IndexError:
                         change_player_server(server_list, player)
-        return frontiers
 
-    #TODO: implementar o verbose e os try/except
+    #TODO: implementar verbose e try/except, alem de alterar o plot para desenhar as fronteiras em ambos os eixos
     elif sqrt(number_of_servers).is_integer() and number_of_servers >= 9:
         frontiers = [[],[]]
+        is_grid = True
         for i in range(sqrt(number_of_servers) - 1):
             frontiers[0].append((i + 1) * (MAP_XMAX / sqrt(number_of_servers))) #Frontiers on the x-axis
             frontiers[1].append((i + 1) * (MAP_YMAX / sqrt(number_of_servers))) #Frontiers on the y-axis
@@ -129,7 +130,7 @@ def allocate_player_to_server_equal_partitions(player_list, server_list):
                             server[(i+1)*len(frontiers[0]) + (j+1)*len(frontiers[1])]['bloom_filter'].add(player['id'])
                             player['server'] = (i+1)*len(frontiers[0]) + (j+1)*len(frontiers[1])
 
-        return frontiers
+    return frontiers, is_grid
             
         
 
@@ -235,8 +236,8 @@ def hashing_method(players, servers):
 
 def equal_partitions_method(players, servers):
     idx = index.Index()
-    partitions = allocate_player_to_server_equal_partitions(players, servers)
-    plot(players, "Método das partições", len(servers), partition=True, frontiers=partitions)
+    partitions, is_grid = allocate_player_to_server_equal_partitions(players, servers)
+    plot(players, "Método das partições", len(servers), partition=True, frontiers=partitions, grid=is_grid)
     calculate_viewable_players(players, viewable_players)
     print("Método das partições: ")
     calculate_number_of_forwards_per_server(players, servers)
@@ -265,7 +266,7 @@ def server_focus_method(players, servers):
     print("Least number of forwards: {}".format(least_forwards))
 
 
-def plot(player_list, method_name, n_servers, partition=False, focus=False, frontiers=[], servers=[]):
+def plot(player_list, method_name, n_servers, partition=False, focus=False, grid=False, frontiers=[], servers=[]):
     cmap = plt.cm.get_cmap("hsv", n_servers+1)
     for player in player_list:
         plt.scatter(player['pos_x'], player['pos_y'], c=cmap(player['server']))
@@ -273,8 +274,14 @@ def plot(player_list, method_name, n_servers, partition=False, focus=False, fron
     # for i, player in enumerate(player_list):
     #     plt.annotate(xy=(player['pos_x'], player['pos_y']), s="Player " + str(i))
     if partition:
-        for i, frontier in enumerate(frontiers):
-            plt.axvline(x=frontier, c=cmap(i+1))
+        if grid:
+            for i, frontier in enumerate(frontiers):
+                plt.axvline(x=frontier, c=cmap(i+1))
+        else:
+            for i, frontier in enumerate(frontiers[0]):
+                plt.axvline(x=frontier, c=cmap(i+1))
+            for j, frontier in enumerate(frontiers[1]):
+                plt.axhline(y=frontier, c=cmap(len(frontiers[0])+(j+1)))
     if focus:
         for i, server in enumerate(servers):
             plt.scatter(server['pos_x'], server['pos_y'], c=cmap(i), marker="s", s=100)
@@ -283,6 +290,7 @@ def plot(player_list, method_name, n_servers, partition=False, focus=False, fron
     plt.title(method_name)
     plt.grid(True)
     plt.show()
+
 
 idx = index.Index()
 while True:
@@ -309,7 +317,6 @@ while True:
         print("Please enter a valid number of viewable players (greater than zero).")
     else:
         break
-MAP_XMIN, MAP_YMIN = 0, 0
 while True:
     MAP_XMAX = float(input("Enter the map size in the x coordinate: "))
     if MAP_XMAX <= 0:
