@@ -265,13 +265,15 @@ def plot(player_list, method_name, n_servers, partition=False, focus=False, fron
     plt.axis([0, MAP_XMAX, 0, MAP_YMAX]) 
     if partition:
         for i, frontier in enumerate(frontiers):
-            plt.axvline(x=frontier, c=cmap(i+1))
-    if focus:
+            plt.axvline(x=frontier, c=cmap(i+1), label="Server {}".format(i))
+    elif focus:
         for i, server in enumerate(servers):
-            plt.scatter(server[POS_X], server[POS_Y], c=cmap(i), marker="s", s=100)
-            plt.annotate(xy=(server[POS_X], server[POS_Y]), s="Server " + str(i))
+            plt.scatter(server[POS_X], server[POS_Y], c=cmap(i), marker="s", s=100, label="Server {}".format(i))
+            #plt.annotate(xy=(server[POS_X], server[POS_Y]), s="Server " + str(i))
+            
     plt.title(method_name)
     plt.grid(True)
+    plt.legend()
     plt.show()
 
 
