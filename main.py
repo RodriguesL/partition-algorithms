@@ -1,7 +1,7 @@
 from rtree import index
 from random import uniform
 from pybloom_live import BloomFilter
-from math import floor, sqrt
+from time import time
 import numpy as np
 import matplotlib.pyplot as plt
 from copy import deepcopy
@@ -57,7 +57,7 @@ def allocate_player_to_server_hashing(player_list, server_list):
     number_of_servers = len(server_list)
     for player in player_list:
         try:
-            if len(server_list[player[ID]][HASH_SET]) < server_capacity:
+            if len(server_list[player[ID] % number_of_servers][HASH_SET]) < server_capacity:
                 server_list[player[ID] % number_of_servers][HASH_SET].add(player[ID])
                 player[SERVER] = player[ID] % number_of_servers
                 if verbose:
@@ -66,6 +66,7 @@ def allocate_player_to_server_hashing(player_list, server_list):
                 raise IndexError
         except IndexError:
             change_player_server(server_list, player)
+    return server_list
 
 
 # Allocates a player to a server with the map partition strategy (equal partitions of the map)
@@ -132,7 +133,7 @@ def allocate_player_to_server_equal_partitions(player_list, server_list):
         
 
 # Allocates players to a server based on the server location on the map (random spot and player is allocated to the nearest server)
-def allocate_player_to_server_focus(player_list, server_list):
+def allocate_player_to_server_focus(player_list, server_list, servers_index):
     for server_id, server in enumerate(server_list):
         server[POS_X] = uniform(0, MAP_XMAX)
         server[POS_Y] = uniform(0, MAP_YMAX)
@@ -214,24 +215,35 @@ def calculate_number_of_forwards_per_server(player_list, server_list):
 
 
 def hashing_method(players, servers):
+    global start_hashing
+    global end_hashing
+    start_hashing = time()
     players_index = index.Index()
-    allocate_player_to_server_hashing(players, servers)
-    plot(players, "Método hashing", len(servers))
+    servers_list = allocate_player_to_server_hashing(players, servers)
     calculate_viewable_players(players, viewable_players)
     print("Método hashing: ")
     calculate_number_of_forwards_per_server(players, servers)
+    end_hashing = time()
+    plot(players, "Método hashing", len(servers), hashing=True, servers=servers_list)
 
 
 def equal_partitions_method(players, servers):
+    global start_partition
+    global end_partition
+    start_partition = time()
     players_index = index.Index()
     partitions= allocate_player_to_server_equal_partitions(players, servers)
-    plot(players, "Método das partições", len(servers), partition=True, frontiers=partitions)
     calculate_viewable_players(players, viewable_players)
     print("Método das partições: ")
     calculate_number_of_forwards_per_server(players, servers)
+    end_partition = time()
+    plot(players, "Método das partições", len(servers), partition=True, frontiers=partitions)
 
 
 def server_focus_method(players, servers):
+    global start_focus
+    global end_focus
+    start_focus = time()
     players_index = index.Index()
     servers_index = index.Index()
     initial_setup_players = deepcopy(players)
@@ -239,11 +251,17 @@ def server_focus_method(players, servers):
     least_forwards = np.inf
     number_of_tries = 500
     for _ in range(number_of_tries):
-        servers_with_focus, players_focus = allocate_player_to_server_focus(players, servers)
+        start = time()
+        start_allocate = time()
+        servers_with_focus, players_focus = allocate_player_to_server_focus(players, servers, servers_index)
+        end_allocate = time()
         if verbose:
             print("Iteration {}: ".format(_))
+        start_viewable = time()
         calculate_viewable_players(players_focus, viewable_players)
+        end_viewable = time()
         total_forwards, forwards_by_server = calculate_number_of_forwards_per_server(players_focus, servers_with_focus)
+        start_deepcopies = time()
         if total_forwards < least_forwards:
             least_forwards = total_forwards
             best_setup = deepcopy(servers_with_focus)
@@ -252,25 +270,37 @@ def server_focus_method(players, servers):
             players = deepcopy(initial_setup_players)
             servers = deepcopy(initial_setup_servers)
             servers_index = index.Index()
-    plot(best_setup_players, "Método dos focos", len(servers), focus=True, servers=best_setup)
+        end_deepcopies = time()
+        end = time()
+        if verbose:
+            print("Iteration {} duration: {}".format(_, end - start))
     print("Método dos focos:")
     print("Least number of forwards: {}".format(least_forwards))
+    end_focus = time()
+    print("Allocate: {}".format(end_allocate - start_allocate))
+    print("Viewable: {}".format(end_viewable - start_viewable))
+    print("Deepcopies: {}".format(end_deepcopies - start_deepcopies))
+    plot(best_setup_players, "Método dos focos", len(servers), focus=True, servers=best_setup)
 
 
-def plot(player_list, method_name, n_servers, partition=False, focus=False, frontiers=[], servers=[]):
-    cmap = plt.cm.get_cmap("hsv", n_servers+1)
+def plot(player_list, method_name, n_servers, hashing=False, partition=False, focus=False, frontiers=[], servers=[]):
+    cmap = plt.cm.get_cmap("tab20", n_servers+1)
     for i, player in enumerate(player_list):
         plt.scatter(player[POS_X], player[POS_Y], c=cmap(player[SERVER]))
         #plt.annotate(xy=(player[POS_X], player[POS_Y]), s="Player " + str(i))
     plt.axis([0, MAP_XMAX, 0, MAP_YMAX]) 
     if partition:
+        plt.axvline(x=0, c=cmap(0), label="Server 0")
         for i, frontier in enumerate(frontiers):
-            plt.axvline(x=frontier, c=cmap(i+1), label="Server {}".format(i))
+            plt.axvline(x=frontier, c=cmap(i+1), label="Server {}".format(i+1))
     elif focus:
         for i, server in enumerate(servers):
             plt.scatter(server[POS_X], server[POS_Y], c=cmap(i), marker="s", s=100, label="Server {}".format(i))
             #plt.annotate(xy=(server[POS_X], server[POS_Y]), s="Server " + str(i))
-            
+    elif hashing:
+        for i, server in enumerate(servers):
+            plt.scatter(0, 0, c=cmap(i), marker="s", s=100, label="Server {}".format(i))
+
     plt.title(method_name)
     plt.grid(True)
     plt.legend()
@@ -329,6 +359,7 @@ list_of_servers = create_servers(n_servers)
 hashing = {}
 partitions = {}
 focus = {}
+start_hashing, end_hashing, start_partition, end_partition, start_focus, end_focus = 0, 0, 0, 0, 0, 0
 hashing[PLAYERS] = deepcopy(list_of_players)
 hashing[SERVERS] = deepcopy(list_of_servers)
 partitions[PLAYERS] = deepcopy(list_of_players)
@@ -338,4 +369,6 @@ focus[SERVERS] = deepcopy(list_of_servers)
 hashing_method(hashing[PLAYERS], hashing[SERVERS])
 equal_partitions_method(partitions[PLAYERS], partitions[SERVERS])
 server_focus_method(focus[PLAYERS], focus[SERVERS])
-
+print("Total time on hashing method: {}".format(end_hashing - start_hashing))
+print("Total time on partition method: {}".format(end_partition - start_partition))
+print("Total time on focus method: {}".format(end_focus - start_focus))
