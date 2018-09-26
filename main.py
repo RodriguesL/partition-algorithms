@@ -74,12 +74,12 @@ def allocate_player_to_server_hashing(player_list, server_list):
 
 # Allocates a player to a server with the map partition strategy (equal partitions of the map)
 def allocate_player_to_server_equal_partitions(player_list, server_list):
-    frontiers = []
+    cells = []
     number_of_servers = len(server_list)
     for i in range(number_of_servers - 1):
-        frontiers.append((i + 1) * (MAP_XMAX / number_of_servers))
+        cells.append((i + 1) * (MAP_XMAX / number_of_servers))
     for player in player_list:
-        if player[POS_X] < frontiers[0]:
+        if player[POS_X] < cells[0]:
             try:
                 if len(server_list[0][HASH_SET]) < server_capacity:
                     server_list[0][HASH_SET].add(player[ID])
@@ -92,14 +92,14 @@ def allocate_player_to_server_equal_partitions(player_list, server_list):
                                                                                                                 POS_X],
                                                                                                             player[
                                                                                                                 POS_Y],
-                                                                                                            frontiers[
+                                                                                                            cells[
                                                                                                                 0]))
                 else:
                     raise IndexError
             except IndexError:
                 change_player_server(server_list, player)
 
-        elif player[POS_X] >= frontiers[-1]:
+        elif player[POS_X] >= cells[-1]:
             try:
                 if len(server_list[-1][HASH_SET]) < server_capacity:
                     server_list[-1][HASH_SET].add(player[ID])
@@ -112,15 +112,15 @@ def allocate_player_to_server_equal_partitions(player_list, server_list):
                                                                                                                 POS_X],
                                                                                                             player[
                                                                                                                 POS_Y],
-                                                                                                            frontiers[
+                                                                                                            cells[
                                                                                                                 -1]))
                 else:
                     raise IndexError
             except IndexError:
                 change_player_server(server_list, player)
 
-        for i in range(len(frontiers) - 1):
-            if frontiers[i] <= player[POS_X] < frontiers[i + 1]:
+        for i in range(len(cells) - 1):
+            if cells[i] <= player[POS_X] < cells[i + 1]:
                 try:
                     if len(server_list[i + 1][HASH_SET]) < server_capacity:
                         server_list[i + 1][HASH_SET].add(player[ID])
@@ -131,13 +131,13 @@ def allocate_player_to_server_equal_partitions(player_list, server_list):
                                     player[ID], i + 1,
                                     player[POS_X],
                                     player[POS_Y],
-                                    frontiers[i], frontiers[i + 1]))
+                                    cells[i], cells[i + 1]))
                     else:
                         raise IndexError
                 except IndexError:
                     change_player_server(server_list, player)
 
-    return frontiers
+    return cells
 
 
 # Allocates players to a server based on the server location on the map (random spot and player is allocated to the nearest server)
@@ -173,6 +173,25 @@ def allocate_player_to_server_focus(player_list, server_list, servers_index):
             del player[SERVER]
             change_player_server(server_list, player)
     return server_list, player_list
+
+
+def allocate_player_to_server_grid(player_list, server_list):
+    cells = []
+    number_of_servers = len(server_list)
+    grid_dimension = int(np.ceil(np.sqrt(number_of_servers)))
+    for i in range(grid_dimension):
+        for j in range(grid_dimension):
+            cells.append(
+                {POS_X: (i + 1) * (MAP_XMAX / grid_dimension), POS_Y: (j + 1) * (MAP_YMAX / grid_dimension),
+                 SERVER: len(cells) if len(cells) < len(server_list) else len(server_list)})
+    for player in player_list:
+        for i in range(len(cells) - 1):
+            if cells[i][POS_X] <= player[POS_X] < cells[i + 1][POS_X] and \
+                    cells[i][POS_Y] <= player[POS_Y] < cells[i + 1][POS_Y]:
+                player[SERVER] = cells[i][SERVER]
+                server_list[player[SERVER]][HASH_SET].add(player[ID])
+
+    return cells, player_list
 
 
 # Reallocates player if the ideal server was already full
@@ -295,9 +314,18 @@ def server_focus_method(players, servers):
     plot_map(best_setup_players, "Focus method", len(servers), focus=True, servers=best_setup)
 
 
+def grid_method(players, servers):
+    players_index = index.Index()
+    grid, players_grid = allocate_player_to_server_grid(players, servers)
+    calculate_viewable_players(players_grid, viewable_players)
+    print("Grid method: ")
+    calculate_number_of_forwards_per_server(players_grid, servers)
+    plot_map(players_grid, "Grid method", len(servers), grid=True, grid_frontiers=grid)
+
+
 # Plots the map layout
-def plot_map(player_list, method_name, n_servers, hashing=False, partition=False, focus=False, frontiers=[],
-             servers=[]):
+def plot_map(player_list, method_name, n_servers, hashing=False, partition=False, focus=False, grid=False, frontiers=[],
+             servers=[], grid_frontiers=[]):
     cmap = plt.cm.get_cmap("tab20", n_servers + 1)
     for i, player in enumerate(player_list):
         plt.scatter(player[POS_X], player[POS_Y], c=cmap(player[SERVER]))
@@ -315,6 +343,10 @@ def plot_map(player_list, method_name, n_servers, hashing=False, partition=False
     elif hashing:
         for i, server in enumerate(servers):
             plt.scatter(0, 0, c=cmap(i), marker="s", s=100, label="Server {}".format(i))
+    elif grid:
+        for frontier in grid_frontiers:
+            plt.axvline(x=frontier[POS_X], c=cmap(frontier[SERVER]), label="Server {}".format(frontier[SERVER]))
+            plt.axhline(y=frontier[POS_Y], c=cmap(frontier[SERVER]), label="Server {}".format(frontier[SERVER]))
 
     plt.title(method_name)
     plt.grid(True)
@@ -371,9 +403,10 @@ while True:
         break
 list_of_players = generate_players(n_players)
 list_of_servers = create_servers(n_servers)
-hashing = {}
-partition = {}
-focus = {}
+hashing = dict()
+partition = dict()
+focus = dict()
+grid = dict()
 start_hashing, end_hashing, start_partition, end_partition, start_focus, end_focus = 0, 0, 0, 0, 0, 0
 hashing[PLAYERS] = deepcopy(list_of_players)
 hashing[SERVERS] = deepcopy(list_of_servers)
@@ -381,9 +414,12 @@ partition[PLAYERS] = deepcopy(list_of_players)
 partition[SERVERS] = deepcopy(list_of_servers)
 focus[PLAYERS] = deepcopy(list_of_players)
 focus[SERVERS] = deepcopy(list_of_servers)
-hashing_method(hashing[PLAYERS], hashing[SERVERS])
-equal_partitions_method(partition[PLAYERS], partition[SERVERS])
-server_focus_method(focus[PLAYERS], focus[SERVERS])
-print("Total time on hashing method: {}".format(end_hashing - start_hashing))
-print("Total time on partition method: {}".format(end_partition - start_partition))
-print("Total time on focus method: {}".format(end_focus - start_focus))
+grid[PLAYERS] = deepcopy(list_of_players)
+grid[SERVERS] = deepcopy(list_of_servers)
+# hashing_method(hashing[PLAYERS], hashing[SERVERS])
+# equal_partitions_method(partition[PLAYERS], partition[SERVERS])
+# server_focus_method(focus[PLAYERS], focus[SERVERS])
+# print("Total time on hashing method: {}".format(end_hashing - start_hashing))
+# print("Total time on partition method: {}".format(end_partition - start_partition))
+# print("Total time on focus method: {}".format(end_focus - start_focus))
+grid_method(grid[PLAYERS], grid[SERVERS])
