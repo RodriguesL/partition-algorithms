@@ -282,7 +282,7 @@ def server_focus_method(players, servers):
     initial_setup_players = deepcopy(players)
     initial_setup_servers = deepcopy(servers)
     least_forwards = np.inf
-    number_of_tries = 500
+    number_of_tries = 250
     for _ in range(number_of_tries):
         start = time()
         start_allocate = time()
@@ -360,7 +360,6 @@ def plot_map(player_list, method_name, n_servers, hashing=False, partition=False
     plt.legend()
     plt.show()
 
-
 players_index = index.Index()
 servers_index = index.Index()
 while True:
@@ -423,11 +422,11 @@ focus[PLAYERS] = deepcopy(list_of_players)
 focus[SERVERS] = deepcopy(list_of_servers)
 grid[PLAYERS] = deepcopy(list_of_players)
 grid[SERVERS] = deepcopy(list_of_servers)
-# hashing_method(hashing[PLAYERS], hashing[SERVERS])
-# equal_partitions_method(partition[PLAYERS], partition[SERVERS])
-# server_focus_method(focus[PLAYERS], focus[SERVERS])
-grid_method(grid[PLAYERS], grid[SERVERS])
-# print("Total time on hashing method: {}".format(end_hashing - start_hashing))
-# print("Total time on partition method: {}".format(end_partition - start_partition))
-# print("Total time on focus method: {}".format(end_focus - start_focus))
+hashing_method(hashing[PLAYERS], hashing[SERVERS])
+equal_partitions_method(partition[PLAYERS], partition[SERVERS])
+server_focus_method(focus[PLAYERS], focus[SERVERS])
+#grid_method(grid[PLAYERS], grid[SERVERS])
+print("Total time on hashing method: {}".format(end_hashing - start_hashing))
+print("Total time on partition method: {}".format(end_partition - start_partition))
+print("Total time on focus method: {}".format(end_focus - start_focus))
 # print("Total time on grid method: {}".format(end_grid - start_grid))
