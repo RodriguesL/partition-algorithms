@@ -7,15 +7,15 @@ import matplotlib.pyplot as plt
 from copy import deepcopy
 
 # Readability constants
-POS_X = 0
-POS_Y = 1
-ID = 2
-SERVER = 3
-BLOOM_FILTER = 4
-HASH_SET = 5
-NEIGHBORS = 6
-PLAYERS = 7
-SERVERS = 8
+POS_X = 'pos_x'
+POS_Y = 'pos_y'
+ID = 'id'
+SERVER = 'server'
+BLOOM_FILTER = 'bloom_filter'
+HASH_SET = 'hash_set'
+NEIGHBORS = 'neighbors'
+PLAYERS = 'players'
+SERVERS = 'servers'
 
 
 # Generates random player positions
@@ -56,7 +56,7 @@ def find_k_nearest_servers(index, x, y, k):
 
 
 # Allocates a player to a server based on player_id
-def allocate_player_to_server_hashing(player_list, server_list):
+def allocate_players_to_server_hashing(player_list, server_list):
     number_of_servers = len(server_list)
     for player in player_list:
         try:
@@ -73,7 +73,7 @@ def allocate_player_to_server_hashing(player_list, server_list):
 
 
 # Allocates a player to a server with the map partition strategy (equal partitions of the map)
-def allocate_player_to_server_equal_partitions(player_list, server_list):
+def allocate_players_to_server_equal_partitions(player_list, server_list):
     cells = []
     number_of_servers = len(server_list)
     for i in range(number_of_servers - 1):
@@ -141,7 +141,7 @@ def allocate_player_to_server_equal_partitions(player_list, server_list):
 
 
 # Allocates players to a server based on the server location on the map (random spot and player is allocated to the nearest server)
-def allocate_player_to_server_focus(player_list, server_list, servers_index):
+def allocate_players_to_server_focus(player_list, server_list, servers_index):
     for server_id, server in enumerate(server_list):
         server[POS_X] = uniform(0, MAP_XMAX)
         server[POS_Y] = uniform(0, MAP_YMAX)
@@ -175,7 +175,9 @@ def allocate_player_to_server_focus(player_list, server_list, servers_index):
     return server_list, player_list
 
 
-def allocate_player_to_server_grid(player_list, server_list):
+# TODO: consertar a forma como estão sendo calculadas as fronteiras de cada célula da grade
+# Allocates players to a server based on their map location inside cells of a grid (grid partition method)
+def allocate_players_to_server_grid(player_list, server_list):
     cells = []
     number_of_servers = len(server_list)
     grid_dimension = int(np.ceil(np.sqrt(number_of_servers)))
@@ -248,7 +250,7 @@ def hashing_method(players, servers):
     global end_hashing
     start_hashing = time()
     players_index = index.Index()
-    servers_list = allocate_player_to_server_hashing(players, servers)
+    servers_list = allocate_players_to_server_hashing(players, servers)
     calculate_viewable_players(players, viewable_players)
     print("Hashing method: ")
     calculate_number_of_forwards_per_server(players, servers)
@@ -262,7 +264,7 @@ def equal_partitions_method(players, servers):
     global end_partition
     start_partition = time()
     players_index = index.Index()
-    partitions = allocate_player_to_server_equal_partitions(players, servers)
+    partitions = allocate_players_to_server_equal_partitions(players, servers)
     calculate_viewable_players(players, viewable_players)
     print("Partition method: ")
     calculate_number_of_forwards_per_server(players, servers)
@@ -284,7 +286,7 @@ def server_focus_method(players, servers):
     for _ in range(number_of_tries):
         start = time()
         start_allocate = time()
-        servers_with_focus, players_focus = allocate_player_to_server_focus(players, servers, servers_index)
+        servers_with_focus, players_focus = allocate_players_to_server_focus(players, servers, servers_index)
         end_allocate = time()
         if verbose:
             print("Iteration {}: ".format(_))
@@ -314,12 +316,17 @@ def server_focus_method(players, servers):
     plot_map(best_setup_players, "Focus method", len(servers), focus=True, servers=best_setup)
 
 
+# Full algorithm of the grid method
 def grid_method(players, servers):
+    global start_grid
+    global end_grid
+    start_grid = time()
     players_index = index.Index()
-    grid, players_grid = allocate_player_to_server_grid(players, servers)
+    grid, players_grid = allocate_players_to_server_grid(players, servers)
     calculate_viewable_players(players_grid, viewable_players)
     print("Grid method: ")
     calculate_number_of_forwards_per_server(players_grid, servers)
+    end_grid = time()
     plot_map(players_grid, "Grid method", len(servers), grid=True, grid_frontiers=grid)
 
 
@@ -407,7 +414,7 @@ hashing = dict()
 partition = dict()
 focus = dict()
 grid = dict()
-start_hashing, end_hashing, start_partition, end_partition, start_focus, end_focus = 0, 0, 0, 0, 0, 0
+start_hashing, end_hashing, start_partition, end_partition, start_focus, end_focus, start_grid, end_grid = 0, 0, 0, 0, 0, 0, 0, 0
 hashing[PLAYERS] = deepcopy(list_of_players)
 hashing[SERVERS] = deepcopy(list_of_servers)
 partition[PLAYERS] = deepcopy(list_of_players)
@@ -419,7 +426,8 @@ grid[SERVERS] = deepcopy(list_of_servers)
 # hashing_method(hashing[PLAYERS], hashing[SERVERS])
 # equal_partitions_method(partition[PLAYERS], partition[SERVERS])
 # server_focus_method(focus[PLAYERS], focus[SERVERS])
+grid_method(grid[PLAYERS], grid[SERVERS])
 # print("Total time on hashing method: {}".format(end_hashing - start_hashing))
 # print("Total time on partition method: {}".format(end_partition - start_partition))
 # print("Total time on focus method: {}".format(end_focus - start_focus))
-grid_method(grid[PLAYERS], grid[SERVERS])
+# print("Total time on grid method: {}".format(end_grid - start_grid))
