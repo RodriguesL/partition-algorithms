@@ -1,10 +1,11 @@
 from rtree import index
-from random import uniform
+from random import uniform, choice
 from pybloom_live import BloomFilter
 from time import time
 import numpy as np
 import matplotlib.pyplot as plt
 from copy import deepcopy
+from scipy.stats import truncnorm
 
 # Readability constants
 POS_X = 'pos_x'
@@ -12,10 +13,10 @@ POS_Y = 'pos_y'
 ID = 'id'
 SERVER = 'server'
 BLOOM_FILTER = 'bloom_filter'
-HASH_SET = 'hash_set'
 NEIGHBORS = 'neighbors'
 PLAYERS = 'players'
 SERVERS = 'servers'
+PLAYER_COUNT = 'player_count'
 
 
 # Generates random player positions
@@ -26,10 +27,14 @@ def generate_players(number_of_players):
         add_to_spatial_index(players_index, player[ID], player[POS_X], player[POS_Y])
     return player_list
 
+def get_possible_focus_positions(player_list):
+    return [(player[POS_X], player[POS_Y]) for player in player_list]
 
+
+# Generates list of servers
 def create_servers(number_of_servers):
     return [
-        {HASH_SET: set()}
+        {PLAYER_COUNT: 0, ID: i}
         for i in range(number_of_servers)]
 
 
@@ -55,15 +60,12 @@ def find_k_nearest_servers(index, x, y, k):
 def allocate_players_to_server_hashing(player_list, server_list):
     number_of_servers = len(server_list)
     for player in player_list:
-        try:
-            if len(server_list[player[ID] % number_of_servers][HASH_SET]) < server_capacity:
-                server_list[player[ID] % number_of_servers][HASH_SET].add(player[ID])
-                player[SERVER] = player[ID] % number_of_servers
-                if verbose:
-                    print("Player {} allocated in server {}".format(player[ID], player[SERVER]))
-            else:
-                raise IndexError
-        except IndexError:
+        if server_list[player[ID] % number_of_servers][PLAYER_COUNT] < server_capacity:
+            server_list[player[ID] % number_of_servers][PLAYER_COUNT] += 1
+            player[SERVER] = player[ID] % number_of_servers
+            if verbose:
+                print("Player {} allocated in server {}".format(player[ID], player[SERVER]))
+        else:
             change_player_server(server_list, player)
     return server_list
 
@@ -76,61 +78,52 @@ def allocate_players_to_server_equal_partitions(player_list, server_list):
         cells.append((i + 1) * (MAP_XMAX / number_of_servers))
     for player in player_list:
         if player[POS_X] < cells[0]:
-            try:
-                if len(server_list[0][HASH_SET]) < server_capacity:
-                    server_list[0][HASH_SET].add(player[ID])
-                    player[SERVER] = 0
-                    if verbose:
-                        print(
-                            "Player {} allocated in server {} - Coordinates({},{}) - Frontier: < {}".format(player[ID],
-                                                                                                            0,
-                                                                                                            player[
-                                                                                                                POS_X],
-                                                                                                            player[
-                                                                                                                POS_Y],
-                                                                                                            cells[
-                                                                                                                0]))
-                else:
-                    raise IndexError
-            except IndexError:
+            if server_list[0][PLAYER_COUNT] < server_capacity:
+                server_list[0][PLAYER_COUNT] += 1
+                player[SERVER] = 0
+                if verbose:
+                    print(
+                        "Player {} allocated in server {} - Coordinates({},{}) - Frontier: < {}".format(player[ID],
+                                                                                                        0,
+                                                                                                        player[
+                                                                                                            POS_X],
+                                                                                                        player[
+                                                                                                            POS_Y],
+                                                                                                        cells[
+                                                                                                            0]))
+            else:
                 change_player_server(server_list, player)
 
         elif player[POS_X] >= cells[-1]:
-            try:
-                if len(server_list[-1][HASH_SET]) < server_capacity:
-                    server_list[-1][HASH_SET].add(player[ID])
-                    player[SERVER] = server_list.index(server_list[-1])
-                    if verbose:
-                        print(
-                            "Player {} allocated in server {} - Coordinates({},{}) - Frontier: > {}".format(player[ID],
-                                                                                                            number_of_servers - 1,
-                                                                                                            player[
-                                                                                                                POS_X],
-                                                                                                            player[
-                                                                                                                POS_Y],
-                                                                                                            cells[
-                                                                                                                -1]))
-                else:
-                    raise IndexError
-            except IndexError:
+            if server_list[-1][PLAYER_COUNT] < server_capacity:
+                server_list[-1][PLAYER_COUNT] += 1
+                player[SERVER] = server_list[-1][ID]
+                if verbose:
+                    print(
+                        "Player {} allocated in server {} - Coordinates({},{}) - Frontier: > {}".format(player[ID],
+                                                                                                        number_of_servers - 1,
+                                                                                                        player[
+                                                                                                            POS_X],
+                                                                                                        player[
+                                                                                                            POS_Y],
+                                                                                                        cells[
+                                                                                                            -1]))
+            else:
                 change_player_server(server_list, player)
 
         for i in range(len(cells) - 1):
             if cells[i] <= player[POS_X] < cells[i + 1]:
-                try:
-                    if len(server_list[i + 1][HASH_SET]) < server_capacity:
-                        server_list[i + 1][HASH_SET].add(player[ID])
-                        player[SERVER] = i + 1
-                        if verbose:
-                            print(
-                                "Player {} allocated in server {} - Coordinates({},{}) - Frontier: {} <= x < {}".format(
-                                    player[ID], i + 1,
-                                    player[POS_X],
-                                    player[POS_Y],
-                                    cells[i], cells[i + 1]))
-                    else:
-                        raise IndexError
-                except IndexError:
+                if server_list[i + 1][PLAYER_COUNT] < server_capacity:
+                    server_list[i + 1][PLAYER_COUNT] += 1
+                    player[SERVER] = i + 1
+                    if verbose:
+                        print(
+                            "Player {} allocated in server {} - Coordinates({},{}) - Frontier: {} <= x < {}".format(
+                                player[ID], i + 1,
+                                player[POS_X],
+                                player[POS_Y],
+                                cells[i], cells[i + 1]))
+                else:
                     change_player_server(server_list, player)
 
     return cells
@@ -145,15 +138,15 @@ def allocate_players_to_server_focus(player_list, server_list):
 
             chosen_server_idx = find_k_nearest_servers(servers_index, player[POS_X], player[POS_Y], 1)[0]
             if chosen_server_idx is None:
-                server_list[player[SERVER]][HASH_SET].remove(player[ID])
+                server_list[player[SERVER]][PLAYER_COUNT] -= 1
                 del player[SERVER]
                 change_player_server(server_list, player)
             else:
                 chosen_server = server_list[chosen_server_idx]
                 player[SERVER] = chosen_server_idx
-                players_set = chosen_server[HASH_SET]
-                players_set.add(player[ID])
-                if len(players_set) == server_capacity:
+                player_count = chosen_server[PLAYER_COUNT]
+                player_count += 1
+                if player_count == server_capacity:
                     servers_index.delete(chosen_server_idx, (chosen_server[POS_X], chosen_server[POS_Y]))
                 if verbose:
                     print(
@@ -178,16 +171,13 @@ def allocate_players_to_server_grid(player_list, server_list):
                  SERVER: len(cells) if len(cells) < len(server_list) else len(server_list)})
     for player in player_list:
         for i in range(len(cells) - 1):
-            try:
-                if cells[i][POS_X] <= player[POS_X] < cells[i + 1][POS_X] and \
-                        cells[i][POS_Y] <= player[POS_Y] < cells[i + 1][POS_Y]:
-                    if len(server_list[cells[SERVER]][HASH_SET]) < server_capacity:
-                        player[SERVER] = cells[i][SERVER]
-                        server_list[player[SERVER]][HASH_SET].add(player[ID])
-                    else:
-                        raise IndexError
-            except IndexError:
-                change_player_server(server_list, player)
+            if cells[i][POS_X] <= player[POS_X] < cells[i + 1][POS_X] and \
+                    cells[i][POS_Y] <= player[POS_Y] < cells[i + 1][POS_Y]:
+                if server_list[cells[SERVER]][PLAYER_COUNT] < server_capacity:
+                    player[SERVER] = cells[i][SERVER]
+                    server_list[player[SERVER]][PLAYER_COUNT] += 1
+                else:
+                    change_player_server(server_list, player)
 
     return cells, player_list
 
@@ -196,10 +186,10 @@ def allocate_players_to_server_grid(player_list, server_list):
 def change_player_server(server_list, player):
     emptiest_server = server_list[0]
     for server in server_list:
-        if len(server[HASH_SET]) < len(emptiest_server[HASH_SET]):
+        if server[PLAYER_COUNT] < emptiest_server[PLAYER_COUNT]:
             emptiest_server = server
-    emptiest_server[HASH_SET].add(player[ID])
-    player[SERVER] = server_list.index(emptiest_server)
+    emptiest_server[PLAYER_COUNT] += 1
+    player[SERVER] = emptiest_server[ID]
     if verbose:
         print("Player {} reallocated to server {}".format(player[ID], player[SERVER]))
 
@@ -218,10 +208,9 @@ def publish_interest_groups(player_list, server_list):
     for player in player_list:
         server = player[SERVER]
         interest_group = interest_groups[server]
-        siblings = server_list[server][HASH_SET]
 
         for neighbor_id in player[NEIGHBORS]:
-            if neighbor_id not in siblings:
+            if player_list[neighbor_id][SERVER] != player[SERVER]:
                 if verbose:
                     print("Player {} added to interest group of server {}".format(neighbor_id, player[SERVER]))
                 interest_group.add(neighbor_id)
@@ -275,6 +264,7 @@ def server_focus_method(players, servers):
     global start_focus
     global end_focus
     calculate_viewable_players(players, viewable_players)
+    possible_positions = get_possible_focus_positions(players)
     start_focus = time()
     least_forwards = np.inf
     number_of_tries = 25
@@ -284,8 +274,9 @@ def server_focus_method(players, servers):
         start = time()
         start_allocate = time()
         for s in servers:
-            s[POS_X] = uniform(0, MAP_XMAX)
-            s[POS_Y] = uniform(0, MAP_YMAX)
+            position = choice(possible_positions)
+            s[POS_X] = position[0]
+            s[POS_Y] = position[1]
 
         servers_with_focus, players_focus = allocate_players_to_server_focus(players, servers)
         total_allocation_time += time() - start_allocate
@@ -300,7 +291,7 @@ def server_focus_method(players, servers):
             for p in players:
                 del p[SERVER]
             for s in servers:
-                s[HASH_SET].clear()
+                s[PLAYER_COUNT] = 0
                 del s[POS_X]
                 del s[POS_Y]
         total_deepcopy_time += time() - start_deepcopies
