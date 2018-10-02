@@ -2,10 +2,9 @@ from rtree import index
 from random import uniform, choice
 from pybloom_live import BloomFilter
 from time import time
+from copy import deepcopy
 import numpy as np
 import matplotlib.pyplot as plt
-from copy import deepcopy
-from scipy.stats import truncnorm
 
 # Readability constants
 POS_X = 'pos_x'
@@ -331,14 +330,14 @@ def plot_map(player_list, method_name, n_servers, hashing=False, partition=False
         plt.scatter(player[POS_X], player[POS_Y], c=cmap(player[SERVER]), alpha=0.7)
         if len(player_list) <= 20:
             plt.annotate(xy=(player[POS_X], player[POS_Y]), s=str(i))
-    plt.axis([0, MAP_XMAX, 0, MAP_YMAX])
+    plt.axis([0, MAP_XMAX + 100, 0, MAP_YMAX])
     if partition:
         plt.axvline(x=0, c=cmap(0), label="Server 0")
         for i, frontier in enumerate(frontiers):
             plt.axvline(x=frontier, c=cmap(i + 1), label="Server {}".format(i + 1))
     elif focus:
         for i, server in enumerate(servers):
-            plt.scatter(server[POS_X], server[POS_Y], c=cmap(server[ID]), marker="s", s=100,
+            plt.scatter(server[POS_X], server[POS_Y], c=cmap(i), marker="s", s=100,
                         label="Server {}".format(i))
             if len(servers) + len(player_list) <= 100:
                 plt.annotate(xy=(server[POS_X], server[POS_Y]), s="Server {}".format(i))
@@ -404,22 +403,10 @@ while True:
         break
 list_of_players = generate_players(n_players)
 list_of_servers = create_servers(n_servers)
-hashing = dict()
-partition = dict()
-focus = dict()
-grid = dict()
 start_hashing, end_hashing, start_partition, end_partition, start_focus, end_focus, start_grid, end_grid = 0, 0, 0, 0, 0, 0, 0, 0
-hashing[PLAYERS] = deepcopy(list_of_players)
-hashing[SERVERS] = deepcopy(list_of_servers)
-partition[PLAYERS] = deepcopy(list_of_players)
-partition[SERVERS] = deepcopy(list_of_servers)
-focus[PLAYERS] = deepcopy(list_of_players)
-focus[SERVERS] = deepcopy(list_of_servers)
-grid[PLAYERS] = deepcopy(list_of_players)
-grid[SERVERS] = deepcopy(list_of_servers)
-hashing_method(hashing[PLAYERS], hashing[SERVERS])
-equal_partitions_method(partition[PLAYERS], partition[SERVERS])
-server_focus_method(focus[PLAYERS], focus[SERVERS])
+hashing_method(list_of_players, list_of_servers)
+equal_partitions_method(list_of_players, list_of_servers)
+server_focus_method(list_of_players, list_of_servers)
 # grid_method(grid[PLAYERS], grid[SERVERS])
 print("Total time on hashing method: {}".format(end_hashing - start_hashing))
 print("Total time on partition method: {}".format(end_partition - start_partition))
