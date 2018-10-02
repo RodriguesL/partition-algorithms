@@ -27,6 +27,7 @@ def generate_players(number_of_players):
         add_to_spatial_index(players_index, player[ID], player[POS_X], player[POS_Y])
     return player_list
 
+
 def get_possible_focus_positions(player_list):
     return [(player[POS_X], player[POS_Y]) for player in player_list]
 
@@ -136,24 +137,24 @@ def allocate_players_to_server_focus(player_list, server_list):
         add_to_spatial_index(servers_index, server_id, server[POS_X], server[POS_Y])
     for player in player_list:
 
-            chosen_server_idx = find_k_nearest_servers(servers_index, player[POS_X], player[POS_Y], 1)[0]
-            if chosen_server_idx is None:
-                server_list[player[SERVER]][PLAYER_COUNT] -= 1
-                del player[SERVER]
-                change_player_server(server_list, player)
-            else:
-                chosen_server = server_list[chosen_server_idx]
-                player[SERVER] = chosen_server_idx
-                player_count = chosen_server[PLAYER_COUNT]
-                player_count += 1
-                if player_count == server_capacity:
-                    servers_index.delete(chosen_server_idx, (chosen_server[POS_X], chosen_server[POS_Y]))
-                if verbose:
-                    print(
-                        "Player {} allocated in server {} - Server coordinates: ({},{}) - Player coordinates: ({},{})".format(
-                            player[ID], chosen_server, server_list[chosen_server][POS_X],
-                            server_list[chosen_server][POS_Y],
-                            player[POS_X], player[POS_Y]))
+        chosen_server_idx = find_k_nearest_servers(servers_index, player[POS_X], player[POS_Y], 1)[0]
+        if chosen_server_idx is None:
+            server_list[player[SERVER]][PLAYER_COUNT] -= 1
+            del player[SERVER]
+            change_player_server(server_list, player)
+        else:
+            chosen_server = server_list[chosen_server_idx]
+            player[SERVER] = chosen_server_idx
+            player_count = chosen_server[PLAYER_COUNT]
+            player_count += 1
+            if player_count == server_capacity:
+                servers_index.delete(chosen_server_idx, (chosen_server[POS_X], chosen_server[POS_Y]))
+            if verbose:
+                print(
+                    "Player {} allocated in server {} - Server coordinates: ({},{}) - Player coordinates: ({},{})".format(
+                        player[ID], chosen_server, server_list[chosen_server][POS_X],
+                        server_list[chosen_server][POS_Y],
+                        player[POS_X], player[POS_Y]))
 
     return server_list, player_list
 
@@ -281,7 +282,8 @@ def server_focus_method(players, servers):
         total_allocation_time += time() - start_allocate
         if verbose:
             print("Iteration {}: ".format(_))
-        total_forwards, forwards_by_server = calculate_number_of_forwards_per_server(players_focus, servers_with_focus, False)
+        total_forwards, forwards_by_server = calculate_number_of_forwards_per_server(players_focus, servers_with_focus,
+                                                                                     False)
         if total_forwards < least_forwards:
             least_forwards = total_forwards
             best_setup = [(s[POS_X], s[POS_Y]) for s in servers_with_focus]
@@ -336,7 +338,8 @@ def plot_map(player_list, method_name, n_servers, hashing=False, partition=False
             plt.axvline(x=frontier, c=cmap(i + 1), label="Server {}".format(i + 1))
     elif focus:
         for i, server in enumerate(servers):
-            plt.scatter(server[POS_X], server[POS_Y], c=cmap(server[ID]), marker="s", s=100, label="Server {}".format(i))
+            plt.scatter(server[POS_X], server[POS_Y], c=cmap(server[ID]), marker="s", s=100,
+                        label="Server {}".format(i))
             if len(servers) + len(player_list) <= 100:
                 plt.annotate(xy=(server[POS_X], server[POS_Y]), s="Server {}".format(i))
     elif hashing:
