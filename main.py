@@ -267,9 +267,8 @@ def server_focus_method(players, servers):
     possible_positions = get_possible_focus_positions(players)
     start_focus = time()
     least_forwards = np.inf
-    number_of_tries = 25
+    number_of_tries = 100
     total_allocation_time = 0
-    total_deepcopy_time = 0
     for _ in range(number_of_tries):
         start = time()
         start_allocate = time()
@@ -283,7 +282,6 @@ def server_focus_method(players, servers):
         if verbose:
             print("Iteration {}: ".format(_))
         total_forwards, forwards_by_server = calculate_number_of_forwards_per_server(players_focus, servers_with_focus, False)
-        start_deepcopies = time()
         if total_forwards < least_forwards:
             least_forwards = total_forwards
             best_setup = [(s[POS_X], s[POS_Y]) for s in servers_with_focus]
@@ -294,15 +292,13 @@ def server_focus_method(players, servers):
                 s[PLAYER_COUNT] = 0
                 del s[POS_X]
                 del s[POS_Y]
-        total_deepcopy_time += time() - start_deepcopies
         end = time()
         if verbose:
             print("Iteration {} duration: {}".format(_, end - start))
     print("Focus method:")
     print("Least number of forwards: {}".format(least_forwards))
     end_focus = time()
-    print("Allocate: {}".format(total_allocation_time))
-    print("Deepcopies: {}".format(total_deepcopy_time))
+    print("Total allocation time: {}".format(total_allocation_time))
 
     # restores the best positions
     for i in range(len(servers)):
@@ -330,7 +326,7 @@ def plot_map(player_list, method_name, n_servers, hashing=False, partition=False
              servers=[], grid_frontiers=[]):
     cmap = plt.cm.get_cmap("tab20", n_servers + 1)
     for i, player in enumerate(player_list):
-        plt.scatter(player[POS_X], player[POS_Y], c=cmap(player[SERVER]))
+        plt.scatter(player[POS_X], player[POS_Y], c=cmap(player[SERVER]), alpha=0.7)
         if len(player_list) <= 20:
             plt.annotate(xy=(player[POS_X], player[POS_Y]), s=str(i))
     plt.axis([0, MAP_XMAX, 0, MAP_YMAX])
@@ -340,8 +336,9 @@ def plot_map(player_list, method_name, n_servers, hashing=False, partition=False
             plt.axvline(x=frontier, c=cmap(i + 1), label="Server {}".format(i + 1))
     elif focus:
         for i, server in enumerate(servers):
-            plt.scatter(server[POS_X], server[POS_Y], c=cmap(i), marker="s", s=100, label="Server {}".format(i))
-            # plt.annotate(xy=(server[POS_X], server[POS_Y]), s="Server " + str(i))
+            plt.scatter(server[POS_X], server[POS_Y], c=cmap(server[ID]), marker="s", s=100, label="Server {}".format(i))
+            if len(servers) + len(player_list) <= 100:
+                plt.annotate(xy=(server[POS_X], server[POS_Y]), s="Server {}".format(i))
     elif hashing:
         for i, server in enumerate(servers):
             plt.scatter(0, 0, c=cmap(i), marker="s", s=100, label="Server {}".format(i))
