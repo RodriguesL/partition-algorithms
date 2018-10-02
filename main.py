@@ -16,6 +16,8 @@ NEIGHBORS = 'neighbors'
 PLAYERS = 'players'
 SERVERS = 'servers'
 PLAYER_COUNT = 'player_count'
+POSITION = 'position'
+USED = 'used'
 
 
 # Generates random player positions
@@ -28,7 +30,7 @@ def generate_players(number_of_players):
 
 
 def get_possible_focus_positions(player_list):
-    return [(player[POS_X], player[POS_Y]) for player in player_list]
+    return [{POSITION: (player[POS_X], player[POS_Y]), USED: False} for player in player_list]
 
 
 # Generates list of servers
@@ -273,9 +275,13 @@ def server_focus_method(players, servers):
         start = time()
         start_allocate = time()
         for s in servers:
-            position = choice(possible_positions)
-            s[POS_X] = position[0]
-            s[POS_Y] = position[1]
+            idx = choice(range(len(possible_positions)))
+            while possible_positions[idx][USED]:
+                idx = choice(range(len(possible_positions)))
+            position = possible_positions[idx]
+            position[USED] = True
+            s[POS_X] = position[POSITION][0]
+            s[POS_Y] = position[POSITION][1]
 
         servers_with_focus, players_focus = allocate_players_to_server_focus(players, servers)
         total_allocation_time += time() - start_allocate
@@ -293,6 +299,8 @@ def server_focus_method(players, servers):
                 s[PLAYER_COUNT] = 0
                 del s[POS_X]
                 del s[POS_Y]
+            for position in possible_positions:
+                position[USED] = False
         end = time()
         if verbose:
             print("Iteration {} duration: {}".format(_, end - start))
@@ -330,7 +338,7 @@ def plot_map(player_list, method_name, n_servers, hashing=False, partition=False
         plt.scatter(player[POS_X], player[POS_Y], c=cmap(player[SERVER]), alpha=0.7)
         if len(player_list) <= 20:
             plt.annotate(xy=(player[POS_X], player[POS_Y]), s=str(i))
-    plt.axis([0, MAP_XMAX + 100, 0, MAP_YMAX])
+    plt.axis([0, MAP_XMAX, 0, MAP_YMAX])
     if partition:
         plt.axvline(x=0, c=cmap(0), label="Server 0")
         for i, frontier in enumerate(frontiers):
@@ -339,8 +347,7 @@ def plot_map(player_list, method_name, n_servers, hashing=False, partition=False
         for i, server in enumerate(servers):
             plt.scatter(server[POS_X], server[POS_Y], c=cmap(i), marker="s", s=100,
                         label="Server {}".format(i))
-            if len(servers) + len(player_list) <= 100:
-                plt.annotate(xy=(server[POS_X], server[POS_Y]), s="Server {}".format(i))
+            plt.annotate(xy=(server[POS_X], server[POS_Y]), s="Server {}".format(i))
     elif hashing:
         for i, server in enumerate(servers):
             plt.scatter(0, 0, c=cmap(i), marker="s", s=100, label="Server {}".format(i))
