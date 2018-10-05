@@ -1,5 +1,5 @@
 from rtree import index
-from random import uniform, choice
+from random import uniform, choice, normalvariate
 from pybloom_live import BloomFilter
 from time import time
 from copy import deepcopy
@@ -18,6 +18,12 @@ SERVERS = 'servers'
 PLAYER_COUNT = 'player_count'
 POSITION = 'position'
 USED = 'used'
+X_MAX = 'x_max'
+X_MIN = 'x_min'
+Y_MAX = 'y_max'
+Y_MIN = 'y_min'
+
+normal_dist = normalvariate(0, 1)
 
 
 # Generates random player positions
@@ -169,15 +175,16 @@ def allocate_players_to_server_grid(player_list, server_list):
     for i in range(grid_dimension):
         for j in range(grid_dimension):
             cells.append(
-                {POS_X: (i + 1) * (MAP_XMAX / grid_dimension), POS_Y: (j + 1) * (MAP_YMAX / grid_dimension),
-                 SERVER: len(cells) if len(cells) < len(server_list) else len(server_list)})
+                {X_MIN: j * (MAP_XMAX / grid_dimension), X_MAX: (j + 1) * (MAP_XMAX / grid_dimension),
+                 Y_MIN: i * (MAP_YMAX / grid_dimension), Y_MAX: (i + 1) * (MAP_YMAX / grid_dimension),
+                 SERVER: len(cells) if len(cells) < number_of_servers - 1 else number_of_servers - 1})
     for player in player_list:
-        for i in range(len(cells) - 1):
-            if cells[i][POS_X] <= player[POS_X] < cells[i + 1][POS_X] and \
-                    cells[i][POS_Y] <= player[POS_Y] < cells[i + 1][POS_Y]:
-                if server_list[cells[SERVER]][PLAYER_COUNT] < server_capacity:
-                    player[SERVER] = cells[i][SERVER]
+        for cell in cells:
+            if cell[X_MIN] <= player[POS_X] < cell[X_MAX] and cell[Y_MIN] <= player[POS_Y] < cell[Y_MAX]:
+                if server_list[cell[SERVER]][PLAYER_COUNT] < server_capacity:
+                    player[SERVER] = cell[SERVER]
                     server_list[player[SERVER]][PLAYER_COUNT] += 1
+                    break
                 else:
                     change_player_server(server_list, player)
 
@@ -353,11 +360,11 @@ def plot_map(player_list, method_name, n_servers, hashing=False, partition=False
             plt.scatter(0, 0, c=cmap(i), marker="s", s=100, label="Server {}".format(i))
     elif grid:
         for frontier in grid_frontiers:
-            plt.axvline(x=frontier[POS_X], c=cmap(frontier[SERVER]), label="Server {}".format(frontier[SERVER]))
-            plt.axhline(y=frontier[POS_Y], c=cmap(frontier[SERVER]), label="Server {}".format(frontier[SERVER]))
+            plt.vlines(x=frontier[X_MIN], ymin=frontier[Y_MIN], ymax=frontier[Y_MAX], color=cmap(frontier[SERVER]), label="Server {}".format(frontier[SERVER]))
+            plt.hlines(y=frontier[Y_MIN], xmin=frontier[X_MIN], xmax=frontier[X_MAX], color=cmap(frontier[SERVER]))
 
     plt.title(method_name)
-    plt.grid(True)
+    plt.grid(True) if not grid else plt.grid(False)
     plt.legend()
     plt.show()
 
@@ -414,8 +421,8 @@ start_hashing, end_hashing, start_partition, end_partition, start_focus, end_foc
 hashing_method(list_of_players, list_of_servers)
 equal_partitions_method(list_of_players, list_of_servers)
 server_focus_method(list_of_players, list_of_servers)
-# grid_method(grid[PLAYERS], grid[SERVERS])
+grid_method(list_of_players, list_of_servers)
 print("Total time on hashing method: {}".format(end_hashing - start_hashing))
 print("Total time on partition method: {}".format(end_partition - start_partition))
 print("Total time on focus method: {}".format(end_focus - start_focus))
-# print("Total time on grid method: {}".format(end_grid - start_grid))
+print("Total time on grid method: {}".format(end_grid - start_grid))
