@@ -1,5 +1,5 @@
 from rtree import index
-from random import uniform, choice, normalvariate
+from random import uniform, choice, random
 from pybloom_live import BloomFilter
 from time import time
 from copy import deepcopy
@@ -22,14 +22,18 @@ X_MAX = 'x_max'
 X_MIN = 'x_min'
 Y_MAX = 'y_max'
 Y_MIN = 'y_min'
-
-normal_dist = normalvariate(0, 1)
+LOAD = 'load'
 
 
 # Generates random player positions
 def generate_players(number_of_players):
     global players_index
-    player_list = [{POS_X: uniform(0, MAP_XMAX), POS_Y: uniform(0, MAP_YMAX), ID: i} for i in range(number_of_players)]
+    player_list = []
+    positions = np.random.weibull(2, (number_of_players, 2))
+    positions[:,0] = positions[:,0]/positions[:,0].max()
+    positions[:,1] = positions[:,1]/positions[:,1].max()
+    for i in range(number_of_players):
+        player_list.append({POS_X: MAP_XMAX * positions[i][0], POS_Y: MAP_YMAX * positions[i][1], ID: i})
     for player in player_list:
         add_to_spatial_index(players_index, player[ID], player[POS_X], player[POS_Y])
     return player_list
@@ -166,7 +170,6 @@ def allocate_players_to_server_focus(player_list, server_list):
     return server_list, player_list
 
 
-# TODO: consertar a forma como estão sendo calculadas as fronteiras de cada célula da grade
 # Allocates players to a server based on their map location inside cells of a grid (grid partition method)
 def allocate_players_to_server_grid(player_list, server_list):
     cells = []
@@ -189,6 +192,17 @@ def allocate_players_to_server_grid(player_list, server_list):
                     change_player_server(server_list, player)
 
     return cells, player_list
+
+
+# Calculates the server's load factor
+# TODO: Pensar em como calcular o fator de carga a cada jogador adicionado no servidor (grupo de interesse teria que ser calculado a cada jogador adicionado)
+def calculate_load_factors(servers, interest_groups):
+    player_states_per_second = 5
+    percentage = 1 / (n_players * player_states_per_second)
+    for server in servers:
+        current_server = server[ID]
+        server[LOAD] = server[PLAYER_COUNT] * percentage + (percentage / player_states_per_second) * interest_groups[
+            current_server].count
 
 
 # Reallocates player if the ideal server was already full
@@ -341,11 +355,15 @@ def grid_method(players, servers):
 def plot_map(player_list, method_name, n_servers, hashing=False, partition=False, focus=False, grid=False, frontiers=[],
              servers=[], grid_frontiers=[]):
     cmap = plt.cm.get_cmap("tab20", n_servers + 1)
+    plt.vlines(x=0, color='black', ymin=0, ymax=MAP_YMAX)
+    plt.hlines(y=0, color='black', xmin=0, xmax=MAP_XMAX)
+    plt.vlines(x=MAP_XMAX, color='black', ymin=0, ymax=MAP_YMAX)
+    plt.hlines(y=MAP_YMAX, color='black', xmin=0, xmax=MAP_XMAX)
     for i, player in enumerate(player_list):
         plt.scatter(player[POS_X], player[POS_Y], c=cmap(player[SERVER]), alpha=0.7)
         if len(player_list) <= 20:
             plt.annotate(xy=(player[POS_X], player[POS_Y]), s=str(i))
-    plt.axis([0, MAP_XMAX, 0, MAP_YMAX])
+    plt.axis([0, MAP_XMAX + 50, 0, MAP_YMAX + 50])
     if partition:
         plt.axvline(x=0, c=cmap(0), label="Server 0")
         for i, frontier in enumerate(frontiers):
@@ -359,9 +377,16 @@ def plot_map(player_list, method_name, n_servers, hashing=False, partition=False
         for i, server in enumerate(servers):
             plt.scatter(0, 0, c=cmap(i), marker="s", s=100, label="Server {}".format(i))
     elif grid:
+        plotted_servers = []
         for frontier in grid_frontiers:
-            plt.vlines(x=frontier[X_MIN], ymin=frontier[Y_MIN], ymax=frontier[Y_MAX], color=cmap(frontier[SERVER]), label="Server {}".format(frontier[SERVER]))
-            plt.hlines(y=frontier[Y_MIN], xmin=frontier[X_MIN], xmax=frontier[X_MAX], color=cmap(frontier[SERVER]))
+            if frontier[SERVER] not in plotted_servers:
+                plt.vlines(x=frontier[X_MIN], ymin=frontier[Y_MIN], ymax=frontier[Y_MAX], color=cmap(frontier[SERVER]),
+                           label="Server {}".format(frontier[SERVER]))
+                plt.hlines(y=frontier[Y_MIN], xmin=frontier[X_MIN], xmax=frontier[X_MAX], color=cmap(frontier[SERVER]))
+                plotted_servers.append(frontier[SERVER])
+            else:
+                plt.vlines(x=frontier[X_MIN], ymin=frontier[Y_MIN], ymax=frontier[Y_MAX], color=cmap(frontier[SERVER]))
+                plt.hlines(y=frontier[Y_MIN], xmin=frontier[X_MIN], xmax=frontier[X_MAX], color=cmap(frontier[SERVER]))
 
     plt.title(method_name)
     plt.grid(True) if not grid else plt.grid(False)
