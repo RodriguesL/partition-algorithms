@@ -219,11 +219,14 @@ def change_player_server(server_list, player):
 
 # Calculates the list of viewable players by a single player
 def calculate_viewable_players(player_list, k):
+    print('Calculating viewable players')
+    print(len(player_list))
+    start = time()
     for player in player_list:
         player[NEIGHBORS] = find_k_nearest(players_index, player[POS_X], player[POS_Y], k)
         if verbose:
             print("{} nearest neighbors from player {}: {}".format(k, player[ID], player[NEIGHBORS]))
-
+    print('Done. Took {}s'.format(time() - start))
 
 # Publishes the interest groups of each server (the players that the server has to receive data about from the servers that they belong to)
 def publish_interest_groups(player_list, server_list):
@@ -231,9 +234,8 @@ def publish_interest_groups(player_list, server_list):
     for player in player_list:
         server = player[SERVER]
         interest_group = interest_groups[server]
-
         for neighbor_id in player[NEIGHBORS]:
-            if player_list[neighbor_id][SERVER] != player[SERVER]:
+            if player_list[neighbor_id][SERVER] != server:
                 if verbose:
                     print("Player {} added to interest group of server {}".format(neighbor_id, player[SERVER]))
                 interest_group.add(neighbor_id)
@@ -246,9 +248,9 @@ def calculate_number_of_forwards_per_server(player_list, server_list, print_focu
     number_of_forwards_by_server = [0] * number_of_servers
     interest_groups = publish_interest_groups(player_list, server_list)
     for i, interest_group in enumerate(interest_groups):
-        number_of_forwards_by_server[i] = interest_group.count
-    for i in range(number_of_servers):
-        if verbose:
+        number_of_forwards_by_server[i] = len(interest_group)
+    if verbose:
+        for i in range(number_of_servers):
             print("Server {}: {} forwards".format(i, str(number_of_forwards_by_server[i])))
     if print_focuses:
         print("Total forwards: {}".format(sum(number_of_forwards_by_server)))
@@ -260,10 +262,10 @@ def calculate_number_of_forwards_per_server(player_list, server_list, print_focu
 def hashing_method(players, servers):
     global start_hashing
     global end_hashing
+    print("Hashing method: ")
     start_hashing = time()
     servers_list = allocate_players_to_server_hashing(players, servers)
     calculate_viewable_players(players, viewable_players)
-    print("Hashing method: ")
     calculate_number_of_forwards_per_server(players, servers)
     end_hashing = time()
     plot_map(players, "Hashing method", len(servers), hashing=True, servers=servers_list)
@@ -273,10 +275,10 @@ def hashing_method(players, servers):
 def equal_partitions_method(players, servers):
     global start_partition
     global end_partition
+    print("Partition method: ")
     start_partition = time()
     partitions = allocate_players_to_server_equal_partitions(players, servers)
     calculate_viewable_players(players, viewable_players)
-    print("Partition method: ")
     calculate_number_of_forwards_per_server(players, servers)
     end_partition = time()
     plot_map(players, "Partition method", len(servers), partition=True, frontiers=partitions)
@@ -286,33 +288,42 @@ def equal_partitions_method(players, servers):
 def server_focus_method(players, servers):
     global start_focus
     global end_focus
-    calculate_viewable_players(players, viewable_players)
+    print("Focus method:")
     possible_positions = get_possible_focus_positions(players)
     start_focus = time()
     least_forwards = np.inf
     number_of_tries = 100
+    calculate_viewable_players(players, viewable_players)
+    positions_count = len(possible_positions)
+    total_attempts_time = 0
     total_allocation_time = 0
+    total_calc_fwds_time = 0
+    total_cleaning_time = 0
+    start_attempts = time()
     for _ in range(number_of_tries):
         start = time()
-        start_allocate = time()
         for s in servers:
-            idx = choice(range(len(possible_positions)))
-            while possible_positions[idx][USED]:
-                idx = choice(range(len(possible_positions)))
+            idx = choice(range(positions_count))
             position = possible_positions[idx]
-            position[USED] = True
             s[POS_X] = position[POSITION][0]
             s[POS_Y] = position[POSITION][1]
 
+        start_allocate = time()
         servers_with_focus, players_focus = allocate_players_to_server_focus(players, servers)
         total_allocation_time += time() - start_allocate
+
         if verbose:
             print("Iteration {}: ".format(_))
-        total_forwards, forwards_by_server = calculate_number_of_forwards_per_server(players_focus, servers_with_focus,
-                                                                                     False)
+
+        start_calc_fwds = time()
+        total_forwards, forwards_by_server = calculate_number_of_forwards_per_server(players_focus, servers_with_focus, False)
+        total_calc_fwds_time += time() - start_calc_fwds
+
         if total_forwards < least_forwards:
             least_forwards = total_forwards
             best_setup = [(s[POS_X], s[POS_Y]) for s in servers_with_focus]
+
+        start_cleaning = time()
         if _ + 1 is not number_of_tries:
             for p in players:
                 del p[SERVER]
@@ -320,21 +331,22 @@ def server_focus_method(players, servers):
                 s[PLAYER_COUNT] = 0
                 del s[POS_X]
                 del s[POS_Y]
-            for position in possible_positions:
-                position[USED] = False
+        total_cleaning_time += time() - start_cleaning
         end = time()
         if verbose:
             print("Iteration {} duration: {}".format(_, end - start))
-    print("Focus method:")
+    total_attempts_time += time() - start_attempts
     print("Least number of forwards: {}".format(least_forwards))
-    end_focus = time()
     print("Total allocation time: {}".format(total_allocation_time))
-
+    print("Total calc fwds time: {}".format(total_calc_fwds_time))
+    print("Total cleaning time: {}".format(total_cleaning_time))
+    print("Total attempts time: {}".format(total_attempts_time))
     # restores the best positions
     for i in range(len(servers)):
         servers[i][POS_X] = best_setup[i][0]
         servers[i][POS_Y] = best_setup[i][1]
     best_setup_servers, best_setup_players = allocate_players_to_server_focus(players, servers)
+    end_focus = time()
     plot_map(best_setup_players, "Focus method", len(servers), focus=True, servers=best_setup_servers)
 
 
@@ -342,10 +354,10 @@ def server_focus_method(players, servers):
 def grid_method(players, servers):
     global start_grid
     global end_grid
+    print("Grid method: ")
     start_grid = time()
     grid, players_grid = allocate_players_to_server_grid(players, servers)
     calculate_viewable_players(players_grid, viewable_players)
-    print("Grid method: ")
     calculate_number_of_forwards_per_server(players_grid, servers)
     end_grid = time()
     plot_map(players_grid, "Grid method", len(servers), grid=True, grid_frontiers=grid)
