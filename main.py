@@ -1,8 +1,7 @@
 from rtree import index
-from random import uniform, choice, random
+from random import choice, seed
 from pybloom_live import BloomFilter
 from time import time
-from copy import deepcopy
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -25,13 +24,17 @@ Y_MIN = 'y_min'
 LOAD = 'load'
 
 
+def set_seeds():
+    np.random.seed(42)
+    seed(42)
+
 # Generates random player positions
 def generate_players(number_of_players):
     global players_index
     player_list = []
     positions = np.random.weibull(2, (number_of_players, 2))
-    positions[:,0] = positions[:,0]/positions[:,0].max()
-    positions[:,1] = positions[:,1]/positions[:,1].max()
+    positions[:, 0] = positions[:, 0] / positions[:, 0].max()
+    positions[:, 1] = positions[:, 1] / positions[:, 1].max()
     for i in range(number_of_players):
         player_list.append({POS_X: MAP_XMAX * positions[i][0], POS_Y: MAP_YMAX * positions[i][1], ID: i})
     for player in player_list:
@@ -183,7 +186,7 @@ def allocate_players_to_server_grid(player_list, server_list):
                  SERVER: len(cells) if len(cells) < number_of_servers - 1 else number_of_servers - 1})
     for player in player_list:
         for cell in cells:
-            if cell[X_MIN] <= player[POS_X] < cell[X_MAX] and cell[Y_MIN] <= player[POS_Y] < cell[Y_MAX]:
+            if cell[X_MIN] <= player[POS_X] <= cell[X_MAX] and cell[Y_MIN] <= player[POS_Y] <= cell[Y_MAX]:
                 if server_list[cell[SERVER]][PLAYER_COUNT] < server_capacity:
                     player[SERVER] = cell[SERVER]
                     server_list[player[SERVER]][PLAYER_COUNT] += 1
@@ -219,14 +222,11 @@ def change_player_server(server_list, player):
 
 # Calculates the list of viewable players by a single player
 def calculate_viewable_players(player_list, k):
-    print('Calculating viewable players')
-    print(len(player_list))
-    start = time()
     for player in player_list:
         player[NEIGHBORS] = find_k_nearest(players_index, player[POS_X], player[POS_Y], k)
         if verbose:
             print("{} nearest neighbors from player {}: {}".format(k, player[ID], player[NEIGHBORS]))
-    print('Done. Took {}s'.format(time() - start))
+
 
 # Publishes the interest groups of each server (the players that the server has to receive data about from the servers that they belong to)
 def publish_interest_groups(player_list, server_list):
@@ -248,12 +248,13 @@ def calculate_number_of_forwards_per_server(player_list, server_list, print_focu
     number_of_forwards_by_server = [0] * number_of_servers
     interest_groups = publish_interest_groups(player_list, server_list)
     for i, interest_group in enumerate(interest_groups):
-        number_of_forwards_by_server[i] = len(interest_group)
+        number_of_forwards_by_server[i] = interest_group.count
     if verbose:
         for i in range(number_of_servers):
             print("Server {}: {} forwards".format(i, str(number_of_forwards_by_server[i])))
     if print_focuses:
         print("Total forwards: {}".format(sum(number_of_forwards_by_server)))
+        print("----------------------------------------")
 
     return sum(number_of_forwards_by_server), number_of_forwards_by_server
 
@@ -268,7 +269,8 @@ def hashing_method(players, servers):
     calculate_viewable_players(players, viewable_players)
     calculate_number_of_forwards_per_server(players, servers)
     end_hashing = time()
-    plot_map(players, "Hashing method", len(servers), hashing=True, servers=servers_list)
+    if plot:
+        plot_map(players, "Hashing method", len(servers), hashing=True, servers=servers_list)
 
 
 # Full algorithm of the partition method
@@ -281,7 +283,8 @@ def equal_partitions_method(players, servers):
     calculate_viewable_players(players, viewable_players)
     calculate_number_of_forwards_per_server(players, servers)
     end_partition = time()
-    plot_map(players, "Partition method", len(servers), partition=True, frontiers=partitions)
+    if plot:
+        plot_map(players, "Partition method", len(servers), partition=True, frontiers=partitions)
 
 
 # Full algorithm of the focus method
@@ -316,14 +319,15 @@ def server_focus_method(players, servers):
             print("Iteration {}: ".format(_))
 
         start_calc_fwds = time()
-        total_forwards, forwards_by_server = calculate_number_of_forwards_per_server(players_focus, servers_with_focus, False)
+        total_forwards, forwards_by_server = calculate_number_of_forwards_per_server(players_focus, servers_with_focus,
+                                                                                     False)
         total_calc_fwds_time += time() - start_calc_fwds
+        print("Iteration forwards time: {}".format(time() - start_calc_fwds))
 
         if total_forwards < least_forwards:
             least_forwards = total_forwards
             best_setup = [(s[POS_X], s[POS_Y]) for s in servers_with_focus]
 
-        start_cleaning = time()
         if _ + 1 is not number_of_tries:
             for p in players:
                 del p[SERVER]
@@ -331,23 +335,24 @@ def server_focus_method(players, servers):
                 s[PLAYER_COUNT] = 0
                 del s[POS_X]
                 del s[POS_Y]
-        total_cleaning_time += time() - start_cleaning
         end = time()
         if verbose:
             print("Iteration {} duration: {}".format(_, end - start))
     total_attempts_time += time() - start_attempts
     print("Least number of forwards: {}".format(least_forwards))
+    print("----------------------------------------")
     print("Total allocation time: {}".format(total_allocation_time))
     print("Total calc fwds time: {}".format(total_calc_fwds_time))
-    print("Total cleaning time: {}".format(total_cleaning_time))
     print("Total attempts time: {}".format(total_attempts_time))
+    print("----------------------------------------")
     # restores the best positions
     for i in range(len(servers)):
         servers[i][POS_X] = best_setup[i][0]
         servers[i][POS_Y] = best_setup[i][1]
     best_setup_servers, best_setup_players = allocate_players_to_server_focus(players, servers)
     end_focus = time()
-    plot_map(best_setup_players, "Focus method", len(servers), focus=True, servers=best_setup_servers)
+    if plot:
+        plot_map(best_setup_players, "Focus method", len(servers), focus=True, servers=best_setup_servers)
 
 
 # Full algorithm of the grid method
@@ -360,7 +365,8 @@ def grid_method(players, servers):
     calculate_viewable_players(players_grid, viewable_players)
     calculate_number_of_forwards_per_server(players_grid, servers)
     end_grid = time()
-    plot_map(players_grid, "Grid method", len(servers), grid=True, grid_frontiers=grid)
+    if plot:
+        plot_map(players_grid, "Grid method", len(servers), grid=True, grid_frontiers=grid)
 
 
 # Plots the map layout
@@ -452,6 +458,24 @@ while True:
     else:
         verbose = bool(verbose)
         break
+while True:
+    plot = int(input("Plot map (0 - false, 1 - true): "))
+    if plot not in (0, 1):
+        print("Please enter a valid value to toggle the map plots (0 or 1)")
+    else:
+        plot = bool(plot)
+        break
+
+while True:
+    fixed_seeds = int(input("Fixed seeds (0 - false, 1 - true): "))
+    if fixed_seeds not in (0, 1):
+        print("Please enter a valid value to toggle the fixed seeds (0 or 1)")
+    else:
+        fixed_seeds = bool(fixed_seeds)
+        break
+
+if fixed_seeds:
+    set_seeds()
 list_of_players = generate_players(n_players)
 list_of_servers = create_servers(n_servers)
 start_hashing, end_hashing, start_partition, end_partition, start_focus, end_focus, start_grid, end_grid = 0, 0, 0, 0, 0, 0, 0, 0
