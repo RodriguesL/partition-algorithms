@@ -295,13 +295,10 @@ def server_focus_method(players, servers):
     possible_positions = get_possible_focus_positions(players)
     start_focus = time()
     least_forwards = np.inf
-    number_of_tries = 100
+    number_of_tries = 15
     calculate_viewable_players(players, viewable_players)
     positions_count = len(possible_positions)
     total_attempts_time = 0
-    total_allocation_time = 0
-    total_calc_fwds_time = 0
-    total_cleaning_time = 0
     start_attempts = time()
     for _ in range(number_of_tries):
         start = time()
@@ -311,18 +308,13 @@ def server_focus_method(players, servers):
             s[POS_X] = position[POSITION][0]
             s[POS_Y] = position[POSITION][1]
 
-        start_allocate = time()
         servers_with_focus, players_focus = allocate_players_to_server_focus(players, servers)
-        total_allocation_time += time() - start_allocate
 
         if verbose:
             print("Iteration {}: ".format(_))
 
-        start_calc_fwds = time()
         total_forwards, forwards_by_server = calculate_number_of_forwards_per_server(players_focus, servers_with_focus,
                                                                                      False)
-        total_calc_fwds_time += time() - start_calc_fwds
-        print("Iteration forwards time: {}".format(time() - start_calc_fwds))
 
         if total_forwards < least_forwards:
             least_forwards = total_forwards
@@ -339,11 +331,8 @@ def server_focus_method(players, servers):
         if verbose:
             print("Iteration {} duration: {}".format(_, end - start))
     total_attempts_time += time() - start_attempts
-    print("Least number of forwards: {}".format(least_forwards))
-    print("----------------------------------------")
-    print("Total allocation time: {}".format(total_allocation_time))
-    print("Total calc fwds time: {}".format(total_calc_fwds_time))
-    print("Total attempts time: {}".format(total_attempts_time))
+    print("Least number of forwards in {} tries: {}".format(number_of_tries, least_forwards))
+    print("Time elapsed for {} tries: {}".format(number_of_tries, total_attempts_time))
     print("----------------------------------------")
     # restores the best positions
     for i in range(len(servers)):
