@@ -3,7 +3,10 @@ from random import choice, seed
 from pybloom_live import BloomFilter
 from time import time
 import numpy as np
+import seaborn as sns; sns.set()
 import matplotlib.pyplot as plt
+from pathlib import Path
+import os
 
 # Readability constants
 POS_X = 'pos_x'
@@ -16,23 +19,26 @@ PLAYERS = 'players'
 SERVERS = 'servers'
 PLAYER_COUNT = 'player_count'
 POSITION = 'position'
-USED = 'used'
 X_MAX = 'x_max'
 X_MIN = 'x_min'
 Y_MAX = 'y_max'
 Y_MIN = 'y_min'
 LOAD = 'load'
 
+ALERT_THRESHOLD = 0.75
+DENY_THRESHOLD = 0.9
+
 
 def set_seeds():
     np.random.seed(42)
-    seed(42)
+    seed(930)
+
 
 # Generates random player positions
 def generate_players(number_of_players):
     global players_index
     player_list = []
-    positions = np.random.weibull(2, (number_of_players, 2))
+    positions = np.random.weibull(3, (number_of_players, 2))
     positions[:, 0] = positions[:, 0] / positions[:, 0].max()
     positions[:, 1] = positions[:, 1] / positions[:, 1].max()
     for i in range(number_of_players):
@@ -43,7 +49,7 @@ def generate_players(number_of_players):
 
 
 def get_possible_focus_positions(player_list):
-    return [{POSITION: (player[POS_X], player[POS_Y]), USED: False} for player in player_list]
+    return [{POSITION: (player[POS_X], player[POS_Y])} for player in player_list]
 
 
 # Generates list of servers
@@ -198,7 +204,6 @@ def allocate_players_to_server_grid(player_list, server_list):
 
 
 # Calculates the server's load factor
-# TODO: Pensar em como calcular o fator de carga a cada jogador adicionado no servidor (grupo de interesse teria que ser calculado a cada jogador adicionado)
 def calculate_load_factors(servers, interest_groups):
     player_states_per_second = 5
     percentage = 1 / (n_players * player_states_per_second)
@@ -206,6 +211,15 @@ def calculate_load_factors(servers, interest_groups):
         current_server = server[ID]
         server[LOAD] = server[PLAYER_COUNT] * percentage + (percentage / player_states_per_second) * interest_groups[
             current_server].count
+    return [server[LOAD] for server in servers]
+
+
+# Calculates a server's load factor by assuming that the interest group for that server is always as big as possible
+def calculate_load_factor_pessimistic(server):
+    player_states_per_second = 5
+    percentage = 1 / (server_capacity * player_states_per_second)
+    load = server[PLAYER_COUNT] * percentage + (percentage / player_states_per_second) * viewable_players
+    return load
 
 
 # Reallocates player if the ideal server was already full
@@ -267,10 +281,12 @@ def hashing_method(players, servers):
     start_hashing = time()
     servers_list = allocate_players_to_server_hashing(players, servers)
     calculate_viewable_players(players, viewable_players)
-    calculate_number_of_forwards_per_server(players, servers)
+    total_forwards, forwards_per_server = calculate_number_of_forwards_per_server(players, servers)
     end_hashing = time()
     if plot:
         plot_map(players, "Hashing method", len(servers), hashing=True, servers=servers_list)
+    servers_load = calculate_load_factors(servers, publish_interest_groups(players, servers))
+    return total_forwards
 
 
 # Full algorithm of the partition method
@@ -281,21 +297,22 @@ def equal_partitions_method(players, servers):
     start_partition = time()
     partitions = allocate_players_to_server_equal_partitions(players, servers)
     calculate_viewable_players(players, viewable_players)
-    calculate_number_of_forwards_per_server(players, servers)
+    total_forwards, forwards_per_server = calculate_number_of_forwards_per_server(players, servers)
     end_partition = time()
     if plot:
         plot_map(players, "Partition method", len(servers), partition=True, frontiers=partitions)
+    servers_load = calculate_load_factors(servers, publish_interest_groups(players, servers))
+    return total_forwards
 
 
 # Full algorithm of the focus method
-def server_focus_method(players, servers):
+def server_focus_method(players, servers, number_of_tries=15):
     global start_focus
     global end_focus
     print("Focus method:")
     possible_positions = get_possible_focus_positions(players)
     start_focus = time()
     least_forwards = np.inf
-    number_of_tries = 15
     calculate_viewable_players(players, viewable_players)
     positions_count = len(possible_positions)
     total_attempts_time = 0
@@ -342,6 +359,8 @@ def server_focus_method(players, servers):
     end_focus = time()
     if plot:
         plot_map(best_setup_players, "Focus method", len(servers), focus=True, servers=best_setup_servers)
+    servers_load = calculate_load_factors(servers, publish_interest_groups(players, servers))
+    return least_forwards
 
 
 # Full algorithm of the grid method
@@ -352,25 +371,21 @@ def grid_method(players, servers):
     start_grid = time()
     grid, players_grid = allocate_players_to_server_grid(players, servers)
     calculate_viewable_players(players_grid, viewable_players)
-    calculate_number_of_forwards_per_server(players_grid, servers)
+    total_forwards, forwards_per_server = calculate_number_of_forwards_per_server(players_grid, servers)
     end_grid = time()
     if plot:
         plot_map(players_grid, "Grid method", len(servers), grid=True, grid_frontiers=grid)
+    servers_load = calculate_load_factors(servers, publish_interest_groups(players, servers))
+    return total_forwards
 
 
 # Plots the map layout
 def plot_map(player_list, method_name, n_servers, hashing=False, partition=False, focus=False, grid=False, frontiers=[],
              servers=[], grid_frontiers=[]):
     cmap = plt.cm.get_cmap("tab20", n_servers + 1)
-    plt.vlines(x=0, color='black', ymin=0, ymax=MAP_YMAX)
-    plt.hlines(y=0, color='black', xmin=0, xmax=MAP_XMAX)
-    plt.vlines(x=MAP_XMAX, color='black', ymin=0, ymax=MAP_YMAX)
-    plt.hlines(y=MAP_YMAX, color='black', xmin=0, xmax=MAP_XMAX)
     for i, player in enumerate(player_list):
         plt.scatter(player[POS_X], player[POS_Y], c=cmap(player[SERVER]), alpha=0.7)
-        if len(player_list) <= 20:
-            plt.annotate(xy=(player[POS_X], player[POS_Y]), s=str(i))
-    plt.axis([0, MAP_XMAX + 50, 0, MAP_YMAX + 50])
+    plt.axis([0, MAP_XMAX + 5, 0, MAP_YMAX + 5])
     if partition:
         plt.axvline(x=0, c=cmap(0), label="Server 0")
         for i, frontier in enumerate(frontiers):
@@ -382,7 +397,7 @@ def plot_map(player_list, method_name, n_servers, hashing=False, partition=False
             plt.annotate(xy=(server[POS_X], server[POS_Y]), s="Server {}".format(i))
     elif hashing:
         for i, server in enumerate(servers):
-            plt.scatter(0, 0, c=cmap(i), marker="s", s=100, label="Server {}".format(i))
+            plt.scatter(-50, -50, c=cmap(i), marker="s", s=100, label="Server {}".format(i))
     elif grid:
         plotted_servers = []
         for frontier in grid_frontiers:
@@ -398,6 +413,9 @@ def plot_map(player_list, method_name, n_servers, hashing=False, partition=False
     plt.title(method_name)
     plt.grid(True) if not grid else plt.grid(False)
     plt.legend()
+    method = "_".join(method_name.split(' '))
+    filename = Path(os.getcwd() + '/maps/map_' + method + '_' + str(n_players) + '_' + str(n_servers) + '.png')
+    plt.savefig(filename)
     plt.show()
 
 
@@ -437,7 +455,7 @@ while True:
 while True:
     MAP_YMAX = float(input("Enter the map size in the y coordinate: "))
     if MAP_YMAX <= 0:
-        print("Please enter a valid value for the x coordinate (greater than zero).")
+        print("Please enter a valid value for the y coordinate (greater than zero).")
     else:
         break
 while True:
@@ -465,14 +483,20 @@ while True:
 
 if fixed_seeds:
     set_seeds()
+
 list_of_players = generate_players(n_players)
 list_of_servers = create_servers(n_servers)
 start_hashing, end_hashing, start_partition, end_partition, start_focus, end_focus, start_grid, end_grid = 0, 0, 0, 0, 0, 0, 0, 0
-hashing_method(list_of_players, list_of_servers)
-equal_partitions_method(list_of_players, list_of_servers)
-server_focus_method(list_of_players, list_of_servers)
-grid_method(list_of_players, list_of_servers)
-print("Total time on hashing method: {}".format(end_hashing - start_hashing))
-print("Total time on partition method: {}".format(end_partition - start_partition))
+#hashing_forwards = hashing_method(list_of_players, list_of_servers)
+#partitions_forwards = equal_partitions_method(list_of_players, list_of_servers)
+focus_forwards = server_focus_method(list_of_players, list_of_servers, number_of_tries=200)
+#grid_forwards = grid_method(list_of_players, list_of_servers)
+#print("Total time on hashing method: {}".format(end_hashing - start_hashing))
+#print("Total time on partition method: {}".format(end_partition - start_partition))
 print("Total time on focus method: {}".format(end_focus - start_focus))
-print("Total time on grid method: {}".format(end_grid - start_grid))
+#print("Total time on grid method: {}".format(end_grid - start_grid))
+#hashing_method = (hashing_forwards, end_hashing - start_hashing)
+#partition_method = (partitions_forwards, end_partition - start_partition)
+focus_method = (focus_forwards, end_focus - start_focus)
+#grid_method = (grid_forwards, end_grid - start_grid)
+
