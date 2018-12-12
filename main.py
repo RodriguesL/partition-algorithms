@@ -176,12 +176,9 @@ def allocate_players_to_server_grid(player_list, server_list):
     for player in player_list:
         for cell in cells:
             if cell[X_MIN] <= player[POS_X] <= cell[X_MAX] and cell[Y_MIN] <= player[POS_Y] <= cell[Y_MAX]:
-                if server_list[cell[SERVER]][PLAYER_COUNT] < server_capacity:
-                    player[SERVER] = cell[SERVER]
-                    server_list[player[SERVER]][PLAYER_COUNT] += 1
-                    break
-                else:
-                    change_player_server(server_list, player)
+                player[SERVER] = cell[SERVER]
+                server_list[player[SERVER]][PLAYER_COUNT] += 1
+                break
 
     return cells, player_list
 
@@ -193,24 +190,6 @@ def calculate_load_factors(servers, interest_groups):
         server[LOAD] = server[PLAYER_COUNT] * lf_cost_own + interest_groups[
             current_server].count * lf_cost_fwd
     return [server[LOAD] for server in servers]
-
-
-# Calculates a server's load factor by assuming that the interest group for that server is always as big as possible
-def calculate_load_factor_pessimistic(server):
-    load = server[PLAYER_COUNT] * lf_cost_own + (viewable_players - server[PLAYER_COUNT]) * lf_cost_fwd
-    return load
-
-
-# Reallocates player if the ideal server was already full
-def change_player_server(server_list, player):
-    emptiest_server = server_list[0]
-    for server in server_list:
-        if server[PLAYER_COUNT] < emptiest_server[PLAYER_COUNT]:
-            emptiest_server = server
-    emptiest_server[PLAYER_COUNT] += 1
-    player[SERVER] = emptiest_server[ID]
-    if verbose:
-        print("Player {} reallocated to server {}".format(player[ID], player[SERVER]))
 
 
 # Calculates the list of viewable players by a single player
@@ -248,13 +227,20 @@ def calculate_number_of_forwards_per_server(player_list, server_list, print_focu
     if print_focuses:
         print("Total forwards: {}".format(sum(number_of_forwards_by_server)))
         servers_load = calculate_load_factors(server_list, publish_interest_groups(player_list, server_list))
-        # if any(load > 100 for load in servers_load):
-        #     print("Unviable partitioning for the method.")
+        if any(load > 100 for load in servers_load):
+             print("Unviable partitioning.")
         print("Server loads: " + str(servers_load))
         print("Player counts: " + str([server[PLAYER_COUNT] for server in server_list]))
         print("----------------------------------------")
+        return sum(number_of_forwards_by_server), number_of_forwards_by_server
+    else:
+        invalid = False
+        servers_load = calculate_load_factors(server_list, publish_interest_groups(player_list, server_list))
+        if any(load > 100 for load in servers_load):
+            invalid = True
 
-    return sum(number_of_forwards_by_server), number_of_forwards_by_server
+        return sum(number_of_forwards_by_server), number_of_forwards_by_server, invalid
+
 
 
 # Full algorithm of the hashing method
@@ -297,9 +283,13 @@ def server_focus_method(players, servers, number_of_tries=15):
     least_forwards = np.inf
     calculate_viewable_players(players, viewable_players)
     positions_count = len(possible_positions)
+    retries = 10
+    start_retry = False
     total_attempts_time = 0
     start_attempts = time()
-    for _ in range(number_of_tries):
+    _ = 0
+    invalid_count = 0
+    while _ < number_of_tries:
         start = time()
         for s in servers:
             idx = choice(range(positions_count))
@@ -312,26 +302,42 @@ def server_focus_method(players, servers, number_of_tries=15):
         if verbose:
             print("Iteration {}: ".format(_))
 
-        total_forwards, forwards_by_server = calculate_number_of_forwards_per_server(players_focus, servers_with_focus,
+        total_forwards, forwards_by_server, invalid_distribution = calculate_number_of_forwards_per_server(players_focus, servers_with_focus,
                                                                                      False)
+        if invalid_distribution and not start_retry:
+            invalid_count += 1
 
         if total_forwards < least_forwards:
             least_forwards = total_forwards
             best_setup = [(s[POS_X], s[POS_Y]) for s in servers_with_focus]
+        if not start_retry:
+            if _ + 1 < number_of_tries:
+                for p in players:
+                    del p[SERVER]
+                for s in servers:
+                    s[PLAYER_COUNT] = 0
+                    del s[POS_X]
+                    del s[POS_Y]
+            else:
+                if invalid_count is number_of_tries:
+                    number_of_tries += retries
+                    start_retry = True
+        else:
+            if _ + 1 < number_of_tries:
+                for p in players:
+                    del p[SERVER]
+                for s in servers:
+                    s[PLAYER_COUNT] = 0
+                    del s[POS_X]
+                    del s[POS_Y]
 
-        if _ + 1 is not number_of_tries:
-            for p in players:
-                del p[SERVER]
-            for s in servers:
-                s[PLAYER_COUNT] = 0
-                del s[POS_X]
-                del s[POS_Y]
+        _ += 1
         end = time()
         if verbose:
             print("Iteration {} duration: {}".format(_, end - start))
     total_attempts_time += time() - start_attempts
-    print("Least number of forwards in {} tries: {}".format(number_of_tries, least_forwards))
-    print("Time elapsed for {} tries: {}".format(number_of_tries, total_attempts_time))
+    print("Least number of forwards in {} tries: {}".format(_, least_forwards))
+    print("Time elapsed for {} tries: {}".format(_, total_attempts_time))
     # restores the best positions
     for i in range(len(servers)):
         servers[i][POS_X] = best_setup[i][0]
@@ -339,8 +345,10 @@ def server_focus_method(players, servers, number_of_tries=15):
     clean_servers_players(players, servers)
     best_setup_servers, best_setup_players = allocate_players_to_server_focus(players, servers)
     servers_load = calculate_load_factors(best_setup_servers, publish_interest_groups(best_setup_players, best_setup_servers))
-    print(servers_load)
-    print([server[PLAYER_COUNT] for server in best_setup_servers])
+    if any(load > 100 for load in servers_load):
+        print("Unviable partitioning.")
+    print("Server loads: " + str(servers_load))
+    print("Player counts: " + str([server[PLAYER_COUNT] for server in best_setup_servers]))
     print("----------------------------------------")
     end_focus = time()
     if plot:
@@ -402,11 +410,13 @@ def plot_map(player_list, method_name, n_servers, hashing=False, partition=False
     plt.savefig(filename)
     plt.show()
 
+
 def clean_servers_players(players, servers):
     for player in players:
         del player[SERVER]
     for server in servers:
         server[PLAYER_COUNT] = 0
+
 
 players_index = index.Index()
 while True:
