@@ -1,0 +1,13 @@
+"""Readability constants"""
+POS_X = 'pos_x'
+POS_Y = 'pos_y'
+ID = 'id'
+SERVER = 'server'
+NEIGHBORS = 'neighbors'
+PLAYER_COUNT = 'player_count'
+POSITION = 'position'
+X_MAX = 'x_max'
+X_MIN = 'x_min'
+Y_MAX = 'y_max'
+Y_MIN = 'y_min'
+LOAD = 'load'
