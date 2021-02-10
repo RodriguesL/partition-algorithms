@@ -4,8 +4,12 @@ from time import time
 
 import numpy as np
 from pybloom_live import BloomFilter
+import matplotlib.pyplot as plt
 
+from utils.Constants import POS_X, POS_Y, SERVER, PLAYER_COUNT
 from utils.Initialization import generate_players, generate_servers
+from utils.OutputUtils import get_output_path
+from utils.ServerUtils import calculate_viewable_players, calculate_load_factors, publish_interest_groups
 from utils.SpatialIndex import generate_spatial_index
 
 
@@ -36,6 +40,8 @@ class Method:
         if self.fixed_seeds:
             self.set_fixed_seeds()
         self.data_output = {}
+        self.method_name = ''
+        calculate_viewable_players(self.players_list, self.players_spatial_index, self.viewable_players)
 
     def start_timer(self):
         self.start_time = time()
@@ -43,6 +49,36 @@ class Method:
     def stop_timer(self):
         self.end_time = time()
         self.time_elapsed = self.end_time - self.start_time
+        if self.verbose:
+            print(f"{self.method_name} time elapsed: {self.time_elapsed} seconds")
+
+    def calculate_number_of_forwards_per_server(self, print_focuses=True, verbose=False):
+        """Calculates the number of forwards done by each server based on its players list"""
+        number_of_servers = len(self.server_list)
+        number_of_forwards_by_server = [0] * number_of_servers
+        interest_groups = publish_interest_groups(self.players_list, self.server_list)
+        invalid = False
+        for interest_group_idx, interest_group in enumerate(interest_groups):
+            number_of_forwards_by_server[interest_group_idx] = interest_group.count
+        if verbose:
+            for interest_group_idx in range(number_of_servers):
+                print(f"Server {interest_group_idx}: {number_of_forwards_by_server[interest_group_idx]} forwards")
+        if print_focuses:
+            print(f"Total forwards: {sum(number_of_forwards_by_server)}")
+            servers_load = calculate_load_factors(self.server_list, self.load_factor_own_cost, self.load_factor_forward_cost, publish_interest_groups(self.players_list, self.server_list))
+            if any(load > 100 for load in servers_load):
+                print("Unviable partitioning.")
+                invalid = True
+            print(f"Server loads: {servers_load}")
+            print(f"Player counts: {[server[PLAYER_COUNT] for server in self.server_list]}")
+            print("----------------------------------------")
+            return sum(number_of_forwards_by_server), number_of_forwards_by_server, invalid
+        else:
+            servers_load = calculate_load_factors(self.server_list, publish_interest_groups(self.players_list, self.server_list))
+            if any(load > 100 for load in servers_load):
+                invalid = True
+
+            return sum(number_of_forwards_by_server), number_of_forwards_by_server, invalid
 
     @staticmethod
     def set_fixed_seeds():
@@ -58,4 +94,13 @@ class Method:
     @abc.abstractmethod
     def plot_map(self):
         """Plots the map for visualization"""
-        pass
+        cmap = plt.cm.get_cmap("tab20", self.server_count + 1)
+        for player in self.players_list:
+            plt.scatter(player[POS_X], player[POS_Y], c=cmap(player[SERVER]), alpha=0.7)
+        plt.axis([0, self.map_size_x + 5, 0, self.map_size_y + 5])
+        plt.title(self.method_name)
+        plt.grid(True)
+        method = "_".join(self.method_name.split(' '))
+        filename = f"map_{method.lower()}_{self.player_count}_{self.server_count}.png"
+        full_path = get_output_path("maps", filename)
+        return cmap, plt, full_path

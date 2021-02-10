@@ -1,16 +1,14 @@
-from utils.Constants import ID, PLAYER_COUNT, SERVER, POS_X, POS_Y
 from methods.Method import Method
-import matplotlib.pyplot as plt
-
-from utils.OutputUtils import get_output_path
+from utils.Constants import ID, PLAYER_COUNT, SERVER
 
 
 class Hashing(Method):
     def __init__(self, player_count, server_count, map_size_x, map_size_y, server_capacity, viewable_players,
                  forward_weight,
                  verbose=False, fixed_seeds=False):
-        super(Hashing, self).__init__(player_count, server_count, map_size_x, map_size_y, server_capacity, viewable_players,
+        super().__init__(player_count, server_count, map_size_x, map_size_y, server_capacity, viewable_players,
                          forward_weight, verbose, fixed_seeds)
+        self.method_name = "Hashing Method"
 
     def allocate_players(self):
         number_of_servers = len(self.server_list)
@@ -22,18 +20,9 @@ class Hashing(Method):
         return self.server_list
 
     def plot_map(self):
-        method_name = "Hashing method"
-        cmap = plt.cm.get_cmap("tab20", self.server_count + 1)
-        for player in self.players_list:
-            plt.scatter(player[POS_X], player[POS_Y], c=cmap(player[SERVER]), alpha=0.7)
-        plt.axis([0, self.map_size_x + 5, 0, self.map_size_y + 5])
+        cmap, plt, full_path = super().plot_map()
         for server_idx, server in enumerate(self.server_list):
             plt.scatter(-50, -50, c=cmap(server_idx), marker="s", s=100, label=f"Server {server_idx}")
-        plt.title(method_name)
-        plt.grid(False)
         plt.legend()
-        method = "_".join(method_name.split(' '))
-        filename = f"map_{method.lower()}_{self.player_count}_{self.server_count}.png"
-        full_path = get_output_path("maps", filename)
         plt.savefig(full_path)
         plt.show()

@@ -1,39 +1,49 @@
-from utils.Constants import ID, PLAYER_COUNT, SERVER, POS_X, POS_Y
-from methods.Method import Method
-import matplotlib.pyplot as plt
+import numpy as np
 
-from utils.OutputUtils import get_output_path
+from methods.Method import Method
+from utils.Constants import PLAYER_COUNT, SERVER, POS_X, POS_Y, X_MIN, Y_MIN, Y_MAX, X_MAX
 
 
 class Grid(Method):
     def __init__(self, player_count, server_count, map_size_x, map_size_y, server_capacity, viewable_players,
                  forward_weight,
                  verbose=False, fixed_seeds=False):
-        super(Grid, self).__init__(player_count, server_count, map_size_x, map_size_y, server_capacity, viewable_players,
+        super().__init__(player_count, server_count, map_size_x, map_size_y, server_capacity, viewable_players,
                          forward_weight, verbose, fixed_seeds)
+        self.method_name = "Grid Method"
+        self.frontiers = []
 
     def allocate_players(self):
         number_of_servers = len(self.server_list)
+        grid_dimension = int(np.ceil(np.sqrt(number_of_servers)))
+        for i in range(grid_dimension):
+            for j in range(grid_dimension):
+                self.frontiers.append(
+                    {X_MIN: j * (self.map_size_x / grid_dimension), X_MAX: (j + 1) * (self.map_size_x / grid_dimension),
+                     Y_MIN: i * (self.map_size_y / grid_dimension), Y_MAX: (i + 1) * (self.map_size_y / grid_dimension),
+                     SERVER: len(self.frontiers) if len(self.frontiers) < number_of_servers - 1 else number_of_servers - 1})
         for player in self.players_list:
-            self.server_list[player[ID] % number_of_servers][PLAYER_COUNT] += 1
-            player[SERVER] = player[ID] % number_of_servers
-            if self.verbose:
-                print(f"Player {player[ID]} allocated in server {player[SERVER]}")
-        return self.server_list
+            for cell in self.frontiers:
+                if cell[X_MIN] <= player[POS_X] <= cell[X_MAX] and cell[Y_MIN] <= player[POS_Y] <= cell[Y_MAX]:
+                    player[SERVER] = cell[SERVER]
+                    self.server_list[player[SERVER]][PLAYER_COUNT] += 1
+                    break
+
+        return self.frontiers, self.players_list
 
     def plot_map(self):
-        method_name = "Grid method"
-        cmap = plt.cm.get_cmap("tab20", self.server_count + 1)
-        for player in self.players_list:
-            plt.scatter(player[POS_X], player[POS_Y], c=cmap(player[SERVER]), alpha=0.7)
-        plt.axis([0, self.map_size_x + 5, 0, self.map_size_y + 5])
-        for server_idx, server in enumerate(self.server_list):
-            plt.scatter(-50, -50, c=cmap(server_idx), marker="s", s=100, label=f"Server {server_idx}")
-        plt.title(method_name)
-        plt.grid(False)
+        cmap, plt, full_path = super().plot_map()
+        plotted_servers = []
+        for frontier in self.frontiers:
+            if frontier[SERVER] not in plotted_servers:
+                plt.vlines(x=frontier[X_MIN], ymin=frontier[Y_MIN], ymax=frontier[Y_MAX], color=cmap(frontier[SERVER]),
+                           label=f"Server {frontier[SERVER]}")
+                plt.hlines(y=frontier[Y_MIN], xmin=frontier[X_MIN], xmax=frontier[X_MAX], color=cmap(frontier[SERVER]))
+                plotted_servers.append(frontier[SERVER])
+            else:
+                plt.vlines(x=frontier[X_MIN], ymin=frontier[Y_MIN], ymax=frontier[Y_MAX], color=cmap(frontier[SERVER]))
+                plt.hlines(y=frontier[Y_MIN], xmin=frontier[X_MIN], xmax=frontier[X_MAX], color=cmap(frontier[SERVER]))
         plt.legend()
-        method = "_".join(method_name.split(' '))
-        filename = f"map_{method.lower()}_{self.player_count}_{self.server_count}.png"
-        full_path = get_output_path("maps", filename)
+        plt.grid(False)
         plt.savefig(full_path)
         plt.show()
