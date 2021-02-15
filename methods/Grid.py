@@ -10,13 +10,14 @@ from utils.Constants import PLAYER_COUNT, SERVER, POS_X, POS_Y, X_MIN, Y_MIN, Y_
 class Grid(Method):
     def __init__(self, player_count, server_count, map_size_x, map_size_y, server_capacity, viewable_players,
                  forward_weight,
-                 verbose=False):
+                 verbose=False, fixed_seeds=False):
         super().__init__(player_count, server_count, map_size_x, map_size_y, server_capacity, viewable_players,
-                         forward_weight, verbose)
+                         forward_weight, verbose, fixed_seeds)
         self.method_name = "Grid Method"
         self.frontiers = []
 
     def allocate_players(self):
+        super().allocate_players()
         number_of_servers = len(self.server_list)
         grid_dimension = int(np.ceil(np.sqrt(number_of_servers)))
         for i in range(grid_dimension):

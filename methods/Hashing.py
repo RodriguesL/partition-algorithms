@@ -8,12 +8,13 @@ from utils.Constants import ID, PLAYER_COUNT, SERVER, TRIES, INVALID, TIME_ELAPS
 class Hashing(Method):
     def __init__(self, player_count, server_count, map_size_x, map_size_y, server_capacity, viewable_players,
                  forward_weight,
-                 verbose=False):
+                 verbose=False, fixed_seeds=False):
         super().__init__(player_count, server_count, map_size_x, map_size_y, server_capacity, viewable_players,
-                         forward_weight, verbose)
+                         forward_weight, verbose, fixed_seeds)
         self.method_name = "Hashing Method"
 
     def allocate_players(self):
+        super().allocate_players()
         number_of_servers = len(self.server_list)
         for player in self.players_list:
             self.server_list[player[ID] % number_of_servers][PLAYER_COUNT] += 1

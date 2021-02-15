@@ -8,14 +8,15 @@ from utils.Constants import ID, PLAYER_COUNT, SERVER, POS_X, POS_Y, TRIES, INVAL
 class Partition(Method):
     def __init__(self, player_count, server_count, map_size_x, map_size_y, server_capacity, viewable_players,
                  forward_weight,
-                 verbose=False):
+                 verbose=False, fixed_seeds=False):
         super().__init__(player_count, server_count, map_size_x,
                          map_size_y, server_capacity, viewable_players,
-                         forward_weight, verbose)
+                         forward_weight, verbose, fixed_seeds)
         self.frontiers = []
         self.method_name = "Partition Method"
 
     def allocate_players(self):
+        super().allocate_players()
         number_of_servers = len(self.server_list)
         for i in range(number_of_servers - 1):
             self.frontiers.append((i + 1) * (self.map_size_x / number_of_servers))

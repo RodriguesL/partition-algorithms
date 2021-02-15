@@ -22,6 +22,8 @@ lib/
 lib64/
 maps/
 graphs/
+output/
+logs/
 parts/
 sdist/
 var/

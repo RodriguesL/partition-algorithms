@@ -13,16 +13,17 @@ from utils.SpatialIndex import add_to_spatial_index
 
 class Focus(Method):
     def __init__(self, player_count, server_count, map_size_x, map_size_y, server_capacity, viewable_players,
-                 forward_weight, number_of_tries, verbose=False):
+                 forward_weight, number_of_tries, verbose=False, fixed_seeds=False):
         super().__init__(player_count, server_count, map_size_x,
                          map_size_y, server_capacity, viewable_players,
-                         forward_weight, verbose)
+                         forward_weight, verbose, fixed_seeds)
         self.servers_index = index.Index()
         self.possible_focus_positions = self.get_possible_focus_positions()
         self.method_name = "Focus Method"
         self.number_of_tries = number_of_tries
 
     def allocate_players(self):
+        super().allocate_players()
         number_of_focus_possibilities = len(self.possible_focus_positions)
         try_count = 0
         self.data_output[TRIES] = []

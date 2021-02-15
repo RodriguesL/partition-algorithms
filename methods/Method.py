@@ -18,7 +18,7 @@ class Method:
 
     def __init__(self, player_count, server_count, map_size_x, map_size_y, server_capacity, viewable_players,
                  forward_weight,
-                 verbose=False):
+                 verbose=False, fixed_seeds=False):
         self.player_count = player_count
         self.server_count = server_count
         self.map_size_x = map_size_x
@@ -38,12 +38,22 @@ class Method:
         self.time_elapsed = 0
         self.data_output = {}
         self.method_name = ''
+        self.fixed_seeds = fixed_seeds
+        if self.fixed_seeds:
+            self.set_fixed_seeds()
         calculate_viewable_players(self.players_list, self.players_spatial_index, self.viewable_players)
 
+    def set_fixed_seeds(self):
+        """Sets fixed seeds"""
+        np.random.seed(42)
+        seed(930)
+
     def start_timer(self):
+        """Starts a timer to measure execution time"""
         self.start_time = time()
 
     def stop_timer(self):
+        """Stops the timer and calculates the elapsed time"""
         self.end_time = time()
         self.time_elapsed = self.end_time - self.start_time
         if self.verbose:
@@ -68,7 +78,6 @@ class Method:
                 invalid = True
             print(f"Server loads: {servers_load}")
             print(f"Player counts: {[server[PLAYER_COUNT] for server in self.server_list]}")
-            print("----------------------------------------")
             return sum(number_of_forwards_by_server), number_of_forwards_by_server, invalid
         else:
             servers_load = calculate_load_factors(self.server_list, publish_interest_groups(self.players_list, self.server_list))
@@ -80,7 +89,7 @@ class Method:
     @abc.abstractmethod
     def allocate_players(self):
         """Allocates players using a method"""
-        pass
+        print(f"----------------{self.method_name}----------------")
 
     @abc.abstractmethod
     def plot_map(self):
