@@ -18,7 +18,7 @@ class Method:
 
     def __init__(self, player_count, server_count, map_size_x, map_size_y, server_capacity, viewable_players,
                  forward_weight,
-                 verbose=False, fixed_seeds=False):
+                 verbose=False):
         self.player_count = player_count
         self.server_count = server_count
         self.map_size_x = map_size_x
@@ -33,12 +33,9 @@ class Method:
         self.load_factor_own_cost = 100 / self.server_capacity
         self.load_factor_forward_cost = self.load_factor_own_cost / self.forward_weight
         self.verbose = verbose
-        self.fixed_seeds = fixed_seeds
         self.start_time = 0
         self.end_time = 0
         self.time_elapsed = 0
-        if self.fixed_seeds:
-            self.set_fixed_seeds()
         self.data_output = {}
         self.method_name = ''
         calculate_viewable_players(self.players_list, self.players_spatial_index, self.viewable_players)

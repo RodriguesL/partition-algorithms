@@ -1,3 +1,5 @@
+from random import seed
+
 import numpy as np
 
 from utils.Constants import POS_X, POS_Y, ID, PLAYER_COUNT
@@ -20,3 +22,9 @@ def generate_servers(server_count):
         {PLAYER_COUNT: 0, ID: idx}
         for idx in range(server_count)
     ]
+
+
+def set_fixed_seeds():
+    """Sets fixed seeds"""
+    np.random.seed(42)
+    seed(930)

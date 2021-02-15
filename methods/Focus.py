@@ -1,3 +1,4 @@
+from copy import deepcopy
 from random import choice
 from time import time
 
@@ -5,17 +6,17 @@ from rtree import index
 
 from methods.Method import Method
 from utils.Constants import POS_X, POS_Y, SERVER, PLAYER_COUNT, POSITION, ID, INVALID, TIME_ELAPSED, TOTAL_FWDS, \
-    FWDS_BY_SERVER, TRIES, MIN_FWD, TOTAL_TIME_ELAPSED
-from utils.ServerUtils import find_k_nearest_servers
+    FWDS_BY_SERVER, TRIES, MIN_FWD, TOTAL_TIME_ELAPSED, PLAYER_LIST, SERVER_LIST
+from utils.ServerUtils import find_k_nearest_servers, clear_allocations
 from utils.SpatialIndex import add_to_spatial_index
 
 
 class Focus(Method):
     def __init__(self, player_count, server_count, map_size_x, map_size_y, server_capacity, viewable_players,
-                 forward_weight, number_of_tries, verbose=False, fixed_seeds=False):
+                 forward_weight, number_of_tries, verbose=False):
         super().__init__(player_count, server_count, map_size_x,
                          map_size_y, server_capacity, viewable_players,
-                         forward_weight, verbose, fixed_seeds)
+                         forward_weight, verbose)
         self.servers_index = index.Index()
         self.possible_focus_positions = self.get_possible_focus_positions()
         self.method_name = "Focus Method"
@@ -47,19 +48,24 @@ class Focus(Method):
                         server_pos_x = self.server_list[chosen_server_idx][POS_X]
                         server_pos_y = self.server_list[chosen_server_idx][POS_Y]
                         print(f"Player {player[ID]} allocated in server {chosen_server} - Server coordinates: ({server_pos_x},{server_pos_y}) - Player coordinates: ({player[POS_X]},{player[POS_Y]})")
-            try_end_time = time()
-            try_time_elapsed = try_end_time - try_start_time
+            end_try_time = time()
             total_forwards, forwards_by_server, invalid_distribution = self.calculate_number_of_forwards_per_server(self.players_list, self.interest_groups)
             try_data = {
                 INVALID: invalid_distribution,
-                TIME_ELAPSED: try_time_elapsed,
+                TIME_ELAPSED: end_try_time - try_start_time,
                 TOTAL_FWDS: total_forwards,
-                FWDS_BY_SERVER: forwards_by_server
+                FWDS_BY_SERVER: forwards_by_server,
+                PLAYER_LIST: deepcopy(self.players_list),
+                SERVER_LIST: deepcopy(self.server_list)
             }
             self.data_output[TRIES].append(try_data)
             try_count += 1
-            self.data_output[MIN_FWD] = min(self.data_output[TRIES], key=lambda data: data[TOTAL_FWDS])
+            self.data_output[MIN_FWD] = min(self.data_output[TRIES], key=lambda data: data[TOTAL_FWDS])[TOTAL_FWDS]
             self.data_output[TOTAL_TIME_ELAPSED] = sum(data[TIME_ELAPSED] for data in self.data_output[TRIES])
+            clear_allocations(self.players_list, self.server_list)
+        best_try = [x for x in self.data_output[TRIES] if x[TOTAL_FWDS] == self.data_output[MIN_FWD]][0]
+        self.players_list = best_try[PLAYER_LIST]
+        self.server_list = best_try[SERVER_LIST]
         return self.server_list, self.players_list
 
     def plot_map(self):

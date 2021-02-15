@@ -41,3 +41,16 @@ def publish_interest_groups(player_list, server_list, verbose=False):
                     print(f"Player {neighbor_id} added to interest group of server {player[SERVER]}")
                 interest_group.add(neighbor_id)
     return interest_groups
+
+
+def clear_allocations(player_list, server_list):
+    """Resets player and server configurations"""
+    for player in player_list:
+        del player[SERVER]
+    for server in server_list:
+        server[PLAYER_COUNT] = 0
+        try:
+            del server[POS_X]
+            del server[POS_Y]
+        except KeyError:
+            pass

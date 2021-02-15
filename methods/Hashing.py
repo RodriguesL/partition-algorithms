@@ -5,9 +5,9 @@ from utils.Constants import ID, PLAYER_COUNT, SERVER
 class Hashing(Method):
     def __init__(self, player_count, server_count, map_size_x, map_size_y, server_capacity, viewable_players,
                  forward_weight,
-                 verbose=False, fixed_seeds=False):
+                 verbose=False):
         super().__init__(player_count, server_count, map_size_x, map_size_y, server_capacity, viewable_players,
-                         forward_weight, verbose, fixed_seeds)
+                         forward_weight, verbose)
         self.method_name = "Hashing Method"
 
     def allocate_players(self):
