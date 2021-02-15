@@ -6,6 +6,12 @@ from utils.Constants import ID, POS_X, POS_Y
 def find_k_nearest(spatial_index, x, y, k):
     """Finds the k nearest neighbors to a coordinate"""
     k_nearest = list(spatial_index.nearest((x, y, x, y), k + 1))
+    return k_nearest
+
+
+def find_k_nearest_players(spatial_index, x, y, k):
+    """Finds the k nearest neighbors to a coordinate"""
+    k_nearest = list(spatial_index.nearest((x, y, x, y), k + 1))
     k_nearest.pop(0)  # Removes itself from list
     return k_nearest
 

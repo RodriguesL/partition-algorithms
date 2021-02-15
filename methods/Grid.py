@@ -1,7 +1,10 @@
+from copy import deepcopy
+
 import numpy as np
 
 from methods.Method import Method
-from utils.Constants import PLAYER_COUNT, SERVER, POS_X, POS_Y, X_MIN, Y_MIN, Y_MAX, X_MAX
+from utils.Constants import PLAYER_COUNT, SERVER, POS_X, POS_Y, X_MIN, Y_MIN, Y_MAX, X_MAX, TRIES, INVALID, \
+    TIME_ELAPSED, TOTAL_FWDS, FWDS_BY_SERVER, PLAYER_LIST, SERVER_LIST
 
 
 class Grid(Method):
@@ -28,7 +31,15 @@ class Grid(Method):
                     player[SERVER] = cell[SERVER]
                     self.server_list[player[SERVER]][PLAYER_COUNT] += 1
                     break
-
+        total_forwards, forwards_by_server, invalid_distribution = self.calculate_number_of_forwards_per_server(self.players_list, self.interest_groups)
+        self.data_output[TRIES] = [{
+            INVALID: invalid_distribution,
+            TIME_ELAPSED: self.time_elapsed,
+            TOTAL_FWDS: total_forwards,
+            FWDS_BY_SERVER: forwards_by_server,
+            PLAYER_LIST: deepcopy(self.players_list),
+            SERVER_LIST: deepcopy(self.server_list)
+        }]
         return self.frontiers, self.players_list
 
     def plot_map(self):

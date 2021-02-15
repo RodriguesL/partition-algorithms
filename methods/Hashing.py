@@ -1,5 +1,8 @@
+from copy import deepcopy
+
 from methods.Method import Method
-from utils.Constants import ID, PLAYER_COUNT, SERVER
+from utils.Constants import ID, PLAYER_COUNT, SERVER, TRIES, INVALID, TIME_ELAPSED, TOTAL_FWDS, FWDS_BY_SERVER, \
+    PLAYER_LIST, SERVER_LIST
 
 
 class Hashing(Method):
@@ -17,6 +20,15 @@ class Hashing(Method):
             player[SERVER] = player[ID] % number_of_servers
             if self.verbose:
                 print(f"Player {player[ID]} allocated in server {player[SERVER]}")
+        total_forwards, forwards_by_server, invalid_distribution = self.calculate_number_of_forwards_per_server(self.players_list, self.interest_groups)
+        self.data_output[TRIES] = [{
+            INVALID: invalid_distribution,
+            TIME_ELAPSED: self.time_elapsed,
+            TOTAL_FWDS: total_forwards,
+            FWDS_BY_SERVER: forwards_by_server,
+            PLAYER_LIST: deepcopy(self.players_list),
+            SERVER_LIST: deepcopy(self.server_list)
+        }]
         return self.server_list
 
     def plot_map(self):

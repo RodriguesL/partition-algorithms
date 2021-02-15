@@ -31,7 +31,7 @@ class Method:
         self.viewable_players = viewable_players
         self.forward_weight = forward_weight
         self.load_factor_own_cost = 100 / self.server_capacity
-        self.load_factor_forward_cost = self.load_factor_own_cost / self.forward_weight
+        self.load_factor_forward_cost = self.load_factor_own_cost * self.forward_weight
         self.verbose = verbose
         self.start_time = 0
         self.end_time = 0
@@ -77,15 +77,9 @@ class Method:
 
             return sum(number_of_forwards_by_server), number_of_forwards_by_server, invalid
 
-    @staticmethod
-    def set_fixed_seeds():
-        """Sets fixed seeds"""
-        np.random.seed(42)
-        seed(930)
-
     @abc.abstractmethod
     def allocate_players(self):
-        """Allocates players using a partitioning method"""
+        """Allocates players using a method"""
         pass
 
     @abc.abstractmethod

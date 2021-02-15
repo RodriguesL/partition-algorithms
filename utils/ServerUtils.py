@@ -1,7 +1,7 @@
 from pybloom_live import BloomFilter
 
 from utils.Constants import ID, PLAYER_COUNT, LOAD, NEIGHBORS, POS_X, POS_Y, SERVER
-from utils.SpatialIndex import find_k_nearest
+from utils.SpatialIndex import find_k_nearest, find_k_nearest_players
 
 
 def find_k_nearest_servers(index, x, y, k):
@@ -22,7 +22,7 @@ def calculate_load_factors(server_list, load_factor_own_cost, load_factor_forwar
 def calculate_viewable_players(players_list, players_spatial_index, k, verbose=False):
     """Calculates the list of viewable players by a single player"""
     for player in players_list:
-        player[NEIGHBORS] = find_k_nearest(players_spatial_index, player[POS_X], player[POS_Y], k)
+        player[NEIGHBORS] = find_k_nearest_players(players_spatial_index, player[POS_X], player[POS_Y], k)
         if verbose:
             print(f"{k} nearest neighbors from player {player[ID]}: {player[NEIGHBORS]}")
 

@@ -1,5 +1,5 @@
 from copy import deepcopy
-from random import choice
+from random import choice, uniform
 from time import time
 
 from rtree import index
@@ -47,7 +47,7 @@ class Focus(Method):
                     if self.verbose:
                         server_pos_x = self.server_list[chosen_server_idx][POS_X]
                         server_pos_y = self.server_list[chosen_server_idx][POS_Y]
-                        print(f"Player {player[ID]} allocated in server {chosen_server} - Server coordinates: ({server_pos_x},{server_pos_y}) - Player coordinates: ({player[POS_X]},{player[POS_Y]})")
+                        print(f"Player {player[ID]} allocated in server {chosen_server[ID]} - Server coordinates: ({server_pos_x},{server_pos_y}) - Player coordinates: ({player[POS_X]},{player[POS_Y]})")
             end_try_time = time()
             total_forwards, forwards_by_server, invalid_distribution = self.calculate_number_of_forwards_per_server(self.players_list, self.interest_groups)
             try_data = {
@@ -60,9 +60,9 @@ class Focus(Method):
             }
             self.data_output[TRIES].append(try_data)
             try_count += 1
-            self.data_output[MIN_FWD] = min(self.data_output[TRIES], key=lambda data: data[TOTAL_FWDS])[TOTAL_FWDS]
-            self.data_output[TOTAL_TIME_ELAPSED] = sum(data[TIME_ELAPSED] for data in self.data_output[TRIES])
             clear_allocations(self.players_list, self.server_list)
+        self.data_output[MIN_FWD] = min(self.data_output[TRIES], key=lambda data: data[TOTAL_FWDS])[TOTAL_FWDS]
+        self.data_output[TOTAL_TIME_ELAPSED] = sum(data[TIME_ELAPSED] for data in self.data_output[TRIES])
         best_try = [x for x in self.data_output[TRIES] if x[TOTAL_FWDS] == self.data_output[MIN_FWD]][0]
         self.players_list = best_try[PLAYER_LIST]
         self.server_list = best_try[SERVER_LIST]
@@ -72,7 +72,7 @@ class Focus(Method):
         cmap, plt, full_path = super().plot_map()
         for server_idx, server in enumerate(self.server_list):
             plt.scatter(server[POS_X], server[POS_Y], c=cmap(server_idx), marker="s", s=100,
-                        label="Server {}".format(server_idx))
+                        label=f"Server {server_idx}")
             plt.annotate(xy=(server[POS_X], server[POS_Y]), s=f"Server {server_idx}")
         plt.legend()
         plt.savefig(full_path)
@@ -80,4 +80,8 @@ class Focus(Method):
 
     def get_possible_focus_positions(self):
         """Returns all possible server focus positions"""
-        return [{POSITION: (player[POS_X], player[POS_Y])} for player in self.players_list]
+        return [{POSITION: (max(min(player[POS_X] + uniform(5, 10), self.map_size_x), 0),
+                            max(min(player[POS_Y] + uniform(5, 10), self.map_size_y), 0)
+                           )
+                 }
+                for player in self.players_list]

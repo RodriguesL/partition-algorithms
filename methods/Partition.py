@@ -1,5 +1,8 @@
+from copy import deepcopy
+
 from methods.Method import Method
-from utils.Constants import ID, PLAYER_COUNT, SERVER, POS_X, POS_Y
+from utils.Constants import ID, PLAYER_COUNT, SERVER, POS_X, POS_Y, TRIES, INVALID, TIME_ELAPSED, TOTAL_FWDS, \
+    FWDS_BY_SERVER, PLAYER_LIST, SERVER_LIST
 
 
 class Partition(Method):
@@ -7,8 +10,8 @@ class Partition(Method):
                  forward_weight,
                  verbose=False):
         super().__init__(player_count, server_count, map_size_x,
-                        map_size_y, server_capacity, viewable_players,
-                        forward_weight, verbose)
+                         map_size_y, server_capacity, viewable_players,
+                         forward_weight, verbose)
         self.frontiers = []
         self.method_name = "Partition Method"
 
@@ -38,7 +41,16 @@ class Partition(Method):
                     if self.verbose:
                         print(
                             f"Player {player[ID]} allocated in server {i + 1} - Coordinates({player[POS_X]},{player[POS_Y]}) - Frontier: {self.frontiers[i]} <= x < {self.frontiers[i + 1]}")
-
+        total_forwards, forwards_by_server, invalid_distribution = self.calculate_number_of_forwards_per_server(
+            self.players_list, self.interest_groups)
+        self.data_output[TRIES] = [{
+            INVALID: invalid_distribution,
+            TIME_ELAPSED: self.time_elapsed,
+            TOTAL_FWDS: total_forwards,
+            FWDS_BY_SERVER: forwards_by_server,
+            PLAYER_LIST: deepcopy(self.players_list),
+            SERVER_LIST: deepcopy(self.server_list)
+        }]
         return self.frontiers
 
     def plot_map(self):
