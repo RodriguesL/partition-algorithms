@@ -69,15 +69,16 @@ class Focus(Method):
         self.server_list = best_try[SERVER_LIST]
         return self.server_list, self.players_list
 
-    def plot_map(self):
+    def plot_map(self, save_file=True, show_plot=True):
         cmap, plt, full_path = super().plot_map()
         for server_idx, server in enumerate(self.server_list):
-            plt.scatter(server[POS_X], server[POS_Y], c=cmap(server_idx), marker="s", s=100,
+            plt.scatter(server[POS_X], server[POS_Y], c="red", marker="s", s=100,
                         label=f"Server {server_idx}")
             plt.annotate(xy=(server[POS_X], server[POS_Y]), s=f"Server {server_idx}")
-        plt.legend()
-        plt.savefig(full_path)
-        plt.show()
+        if save_file:
+            plt.savefig(full_path)
+        if show_plot:
+            plt.show()
 
     def get_possible_focus_positions(self):
         """Returns all possible server focus positions"""

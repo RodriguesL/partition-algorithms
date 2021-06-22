@@ -4,7 +4,7 @@ import numpy as np
 
 from methods.Method import Method
 from utils.Constants import PLAYER_COUNT, SERVER, POS_X, POS_Y, X_MIN, Y_MIN, Y_MAX, X_MAX, TRIES, INVALID, \
-    TIME_ELAPSED, TOTAL_FWDS, FWDS_BY_SERVER, PLAYER_LIST, SERVER_LIST
+    TIME_ELAPSED, TOTAL_FWDS, FWDS_BY_SERVER, PLAYER_LIST, SERVER_LIST, MIN_FWD, TOTAL_TIME_ELAPSED
 
 
 class Grid(Method):
@@ -17,6 +17,7 @@ class Grid(Method):
         self.frontiers = []
 
     def allocate_players(self):
+        self.start_timer()
         super().allocate_players()
         number_of_servers = len(self.server_list)
         grid_dimension = int(np.ceil(np.sqrt(number_of_servers)))
@@ -33,6 +34,7 @@ class Grid(Method):
                     self.server_list[player[SERVER]][PLAYER_COUNT] += 1
                     break
         total_forwards, forwards_by_server, invalid_distribution = self.calculate_number_of_forwards_per_server(self.players_list, self.interest_groups)
+        self.stop_timer()
         self.data_output[TRIES] = [{
             INVALID: invalid_distribution,
             TIME_ELAPSED: self.time_elapsed,
@@ -41,9 +43,11 @@ class Grid(Method):
             PLAYER_LIST: deepcopy(self.players_list),
             SERVER_LIST: deepcopy(self.server_list)
         }]
+        self.data_output[MIN_FWD] = min(self.data_output[TRIES], key=lambda data: data[TOTAL_FWDS])[TOTAL_FWDS]
+        self.data_output[TOTAL_TIME_ELAPSED] = sum(data[TIME_ELAPSED] for data in self.data_output[TRIES])
         return self.frontiers, self.players_list
 
-    def plot_map(self):
+    def plot_map(self, save_file=True, show_plot=True):
         cmap, plt, full_path = super().plot_map()
         plotted_servers = []
         for frontier in self.frontiers:
@@ -57,5 +61,7 @@ class Grid(Method):
                 plt.hlines(y=frontier[Y_MIN], xmin=frontier[X_MIN], xmax=frontier[X_MAX], color=cmap(frontier[SERVER]))
         plt.legend()
         plt.grid(False)
-        plt.savefig(full_path)
-        plt.show()
+        if save_file:
+            plt.savefig(full_path)
+        if show_plot:
+            plt.show()

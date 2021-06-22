@@ -26,7 +26,7 @@ class Method:
         self.players_list = generate_players(self.player_count, self.map_size_x, self.map_size_y)
         self.server_list = generate_servers(self.server_count)
         self.players_spatial_index = generate_spatial_index(self.players_list)
-        self.interest_groups = [BloomFilter(self.player_count ** 2, error_rate=0.1) for server in self.server_list]
+        self.interest_groups = [BloomFilter(self.player_count ** 2, error_rate=0.1) for _ in self.server_list]
         self.server_capacity = server_capacity
         self.viewable_players = viewable_players
         self.forward_weight = forward_weight
@@ -92,7 +92,7 @@ class Method:
         print(f"----------------{self.method_name}----------------")
 
     @abc.abstractmethod
-    def plot_map(self):
+    def plot_map(self, save_file=True, show_plot=True):
         """Plots the map for visualization"""
         cmap = plt.cm.get_cmap("tab20", self.server_count + 1)
         for player in self.players_list:
