@@ -1,3 +1,3 @@
-# Projeto Final
+# Partition Algorithms
 
-Trabalho de conclusão de curso para obtenção do grau de Bacharel em Ciência da Computação pela Universidade Federal do Rio de Janeiro.
+Study envolving four different player partitioning methods on a online multiplayer game.
